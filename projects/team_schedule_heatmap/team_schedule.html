@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Team Schedule Heatmap</title>
+<style>
+:root{
+  --bg:#0f1724; --card:#0b1220; --muted:#c5d0e0; --accent:#6ee7b7;
+  /* heatmap colors - vibrant, keep UI accent unchanged */
+  --h0:#e6ffef; --h1:#a5d6a7; --h2:#fff59d; --h3:#ffd54f; --h4:#ff8a65; --h5:#ff5252; --h6:#d50000;
+  --cell-size:28px; --gap:6px; --edit-cell-size:38px; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #081029 100%);color:#f0f4f8;overflow:hidden}
+.app{max-width:1400px;height:100vh;margin:0 auto;padding:12px;display:flex;flex-direction:column}
+.app{max-width:1400px;height:100vh;margin:0 auto;padding:12px;display:flex;flex-direction:column}
+.header{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-shrink:0}
+.brand{font-weight:600;font-size:18px;color:var(--accent)}
+.controls{margin-left:auto;display:flex;gap:8px;align-items:center;position:relative}
+.btn{background:#0f1728;border:1px solid rgba(255,255,255,0.04);padding:7px 10px;border-radius:8px;color:#d0dae6;cursor:pointer;font-size:14px;font-weight:500}
+.btn.primary{background:var(--accent);color:#04111b;font-weight:600}
+.btn.toggle{min-width:145px;text-align:center}
+.btn.toggle.active{background:var(--accent);color:#04111b}
+.grid-wrap{display:flex;gap:12px;flex:1;min-height:0}
+.sidebar{width:240px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px;border-radius:12px;display:flex;flex-direction:column;overflow-y:auto}
+.members{display:flex;flex-direction:column;gap:6px;margin-top:6px;flex:1;overflow-y:auto}
+.member{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.01)}
+.member input[type=checkbox]{transform:scale(1.1)}
+.member .name{flex:1;color:#e8f0f7;font-size:14px;font-weight:500}
+.member .actions{display:flex;gap:4px}
+.main{flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));padding:10px;border-radius:12px;display:flex;flex-direction:column;min-height:0}
+.main{flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));padding:10px;border-radius:12px;display:flex;flex-direction:column;min-height:0}
+.legend{display:flex;gap:6px;align-items:center;margin-top:8px;justify-content:center;flex-shrink:0}
+.legend .item{display:flex;align-items:center;gap:6px;font-size:13px;color:#d0dae6;font-weight:500}
+.legend .sw{width:16px;height:12px;border-radius:4px;border:1px solid rgba(0,0,0,0.2);} 
+.table{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.table table{border-collapse:collapse;width:100%;table-layout:fixed}
+.table th, .table td{border:1px solid rgba(255,255,255,0.03);padding:2px;vertical-align:middle;word-wrap:break-word;height:50px}
+.table th{background:rgba(255,255,255,0.02);font-weight:600;font-size:13px;padding:4px 2px;color:#e8f0f7;height:auto}
+.time-col{width:70px}
+.cell-wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:2px}
+.heatcell{border-radius:4px;padding:2px;height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;white-space:normal;font-size:10px;line-height:1.2;text-align:center;font-weight:500;overflow:hidden}
+.heatcell{border-radius:4px;padding:2px;min-height:22px;display:block;position:relative;white-space:normal;font-size:10px;line-height:1.2}
+.heatcell.h0{background:var(--h0);color:#06220f}
+.heatcell.h1{background:var(--h1);color:#1b5e20}
+.heatcell.h2{background:var(--h2);color:#2b2b00}
+.heatcell.h3{background:var(--h3);color:#2b1700}
+.heatcell.h4{background:var(--h4);color:#3b1209}
+.heatcell.h5{background:var(--h5);color:#fff}
+.heatcell.h6{background:var(--h6);color:#fff}
+.heatcell .note-dot{position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:2px;background:rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:9px}
+.edit-overlay{position:fixed;inset:0;background:rgba(2,6,12,0.6);display:flex;align-items:center;justify-content:center;z-index:999}
+.edit-card{background:#071122;padding:12px;border-radius:10px;width:720px;max-width:calc(100% - 40px)}
+.edit-grid{display:grid;grid-template-columns:80px repeat(var(--days),1fr);gap:6px;align-items:center}
+.edit-cell{height:var(--edit-cell-size);display:flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(255,255,255,0.02);cursor:pointer;position:relative;font-size:13px;font-weight:600;color:#d0dae6}
+.edit-cell.selected{background:linear-gradient(90deg, rgba(110,231,183,0.14), rgba(110,231,183,0.06));box-shadow:0 0 0 2px rgba(110,231,183,0.55) inset;font-weight:700}
+.edit-cell .note-dot{position:absolute;right:6px;top:6px;width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,0.08)}
+.tooltip{position:fixed;background:#0b1622;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;pointer-events:none;z-index:9999;font-size:13px;color:#d0dae6;max-width:300px;font-weight:500;white-space:normal;word-wrap:break-word}
+.footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px;color:#c0cad8;font-size:13px;flex-shrink:0;font-weight:500}
+.export-menu{position:absolute;background:#071122;border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;display:none;right:0;top:100%;margin-top:6px;z-index:50}
+.export-menu button{display:block;width:200px;text-align:left;margin:6px;padding:8px;border-radius:8px;background:transparent;border:0;color:#d0dae6;cursor:pointer;font-size:14px;font-weight:500}
+.display-menu{position:absolute;background:#071122;border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;display:none;right:0;top:100%;margin-top:6px;z-index:50;width:220px}
+.display-menu label{display:flex;align-items:center;gap:8px;margin:6px;padding:8px;border-radius:8px;background:transparent;color:#d0dae6;cursor:pointer;font-size:14px;user-select:none;font-weight:500}
+.display-menu label:hover{background:rgba(255,255,255,0.02)}
+.display-menu input[type=checkbox]{cursor:pointer;accent-color:var(--accent)}
+.small{font-size:12px;color:#b0bac8;font-weight:500}
+.input{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;color:#f0f4f8;font-size:14px;width:100%}
+.time-cell{height:var(--edit-cell-size);display:flex;align-items:center;justify-content:center;font-size:13px;color:#d0dae6;font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="brand">Team Schedule Heatmap</div>
+    <div class="small">08:40-17:40 slots • Hover for details • Export: JSON, CSV, PNG, HTML</div>
+    <div class="controls">
+      <button class="btn toggle" id="toggleWeekends">Show Weekends</button>
+      <button class="btn toggle" id="invertView">Show Availability</button>
+      <div class="btn" id="displayBtn">Display ▼</div>
+      <div class="display-menu" id="displayMenu">
+        <label><input type="checkbox" id="showCount" checked> Show count</label>
+        <label><input type="checkbox" id="showNames" checked> Show names</label>
+        <label><input type="checkbox" id="showColor" checked> Show color</label>
+        <label><input type="checkbox" id="showNotes" checked> Show notes</label>
+        <label><input type="checkbox" id="showGapHours"> Show gap hours</label>
+        <div id="gapHourSelector" style="display:none;margin:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01)">
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Target hour:</label>
+          <select id="gapHourTarget" style="width:100%;background:#0f1728;border:1px solid rgba(255,255,255,0.04);padding:7px 10px;border-radius:8px;color:#d0dae6;font-size:14px;font-weight:500;cursor:pointer;outline:none">
+            <option value="08:40">08:40</option>
+            <option value="09:40">09:40</option>
+            <option value="10:40">10:40</option>
+            <option value="11:40">11:40</option>
+            <option value="12:40">12:40</option>
+            <option value="13:40">13:40</option>
+            <option value="14:40">14:40</option>
+            <option value="15:40">15:40</option>
+            <option value="16:40">16:40</option>
+            <option value="17:40" selected>17:40</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn" id="exportBtn">Export ▼</div>
+      <div class="export-menu" id="exportMenu">
+        <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04)">
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Export Title:</label>
+          <input type="text" id="exportTitle" class="input" placeholder="Team Schedule Heatmap" style="font-size:12px;padding:4px 6px">
+        </div>
+        <button data-act="json">Export JSON</button>
+        <button data-act="csv">Export CSV</button>
+        <button data-act="png">Export PNG Image</button>
+        <button data-act="static">Export Static HTML</button>
+        <button data-act="dynamic">Export Dynamic HTML</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid-wrap">
+    <div class="sidebar">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="newMemberName" class="input" placeholder="new member name" />
+        <button class="btn primary" id="addMemberQuick">Add</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn" id="selectAllMembers" style="flex:1;font-size:11px">Select All</button>
+        <button class="btn" id="deselectAllMembers" style="flex:1;font-size:11px">Deselect All</button>
+      </div>
+      <div class="members" id="membersList"></div>
+      <div style="margin-top:6px;color:var(--muted);font-size:11px">Select members to include. Edit for busy slots. Right-click for notes.</div>
+    </div>
+    <div class="main">
+      <div class="table" id="tableWrap">
+        <!-- table inserted here -->
+      </div>
+      <div class="legend" id="legend">
+        <div class="item"><div class="sw" style="background:var(--h0)"></div><span id="legendH0">0</span></div>
+        <div class="item"><div class="sw" style="background:var(--h1)"></div><span id="legendH1">1</span></div>
+        <div class="item"><div class="sw" style="background:var(--h2)"></div><span id="legendH2">2</span></div>
+        <div class="item"><div class="sw" style="background:var(--h3)"></div><span id="legendH3">3</span></div>
+        <div class="item"><div class="sw" style="background:var(--h4)"></div><span id="legendH4">4</span></div>
+        <div class="item"><div class="sw" style="background:var(--h5)"></div><span id="legendH5">5</span></div>
+        <div class="item"><div class="sw" style="background:var(--h6)"></div><span id="legendH6">6+</span></div>
+        <div class="item" id="legendExtra" style="display:none"><div class="sw" id="legendExtraSw"></div><span id="legendExtraText"></span></div>
+      </div>
+      <div class="footer"><div id="status">No members selected</div><div class="small" id="legendCaption">Busy count</div></div>
+    </div>
+  </div>
+</div>
+<div id="tooltip" class="tooltip" style="display:none"></div>
+<div id="editOverlay" style="display:none" class="edit-overlay">
+  <div class="edit-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div><strong id="editName">Edit member</strong> <span class="small" id="editHint"></span></div>
+      <div><button class="btn" id="closeEdit">Close</button></div>
+    </div>
+    <div style="margin-bottom:8px;padding:6px;background:#0e1f2a;border-radius:4px">
+      <label style="display:flex;align-items:center;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="livesOffCampusCheckbox" style="margin-right:6px;cursor:pointer">
+        <span>Lives Off-Campus (show gap hours)</span>
+      </label>
+    </div>
+    <div class="edit-grid" id="editGrid"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <div class="small">Click cell to toggle busy. Right-click to add or remove note.</div>
+      <div><button class="btn" id="saveEdit">Save</button></div>
+    </div>
+  </div>
+</div>
+<script>
+// Data model
+const TIMES = ['08:40','09:40','10:40','11:40','12:40','13:40','14:40','15:40','16:40','17:40'];
+const ALL_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+let days = ALL_DAYS.slice(0,5); // default weekdays
+let members = [];
+let selectedMembers = new Set();
+let editingId = null;
+let invertedView = false;
+const STORAGE_KEY = 'team_schedule_heatmap_v1';
+
+// Display options
+let displayOptions = {
+  showCount: true,
+  showNames: true,
+  showColor: true,
+  showNotes: true,
+  showGapHours: false,
+  gapHourTarget: '17:40'
+};
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function keyFor(d,t){return d+'|'+t}
+
+// Calculate gap hours: count free hours before target time for a member on a specific day
+function calculateGapHours(member, day, targetTime) {
+  const targetIndex = TIMES.indexOf(targetTime);
+  if(targetIndex === -1 || targetIndex === 0) return 0;
+  
+  // Find the last busy slot before target time
+  let lastBusyIndex = -1;
+  for(let i = targetIndex - 1; i >= 0; i--) {
+    const key = keyFor(day, TIMES[i]);
+    if(member.busy.has(key)) {
+      lastBusyIndex = i;
+      break;
+    }
+  }
+  
+  // If no busy slots before target, return 0
+  if(lastBusyIndex === -1) return 0;
+  
+  // Count free hours between last busy and target
+  return targetIndex - lastBusyIndex - 1;
+}
+
+function save(){const serial = members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false})); localStorage.setItem(STORAGE_KEY,JSON.stringify({members:serial,days}));}
+function load(){const raw=localStorage.getItem(STORAGE_KEY);if(!raw) return; try{const obj=JSON.parse(raw);members=(obj.members||[]).map(m=>({id:m.id,name:m.name,busy:new Set(m.busy||[]),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false})); days=obj.days||days;}catch(e){console.warn(e)}}
+
+// UI render
+function renderMembers(){const el=document.getElementById('membersList');el.innerHTML='';members.forEach(m=>{
+  const div=document.createElement('div');div.className='member';
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=selectedMembers.has(m.id);cb.onchange=()=>{if(cb.checked) selectedMembers.add(m.id); else selectedMembers.delete(m.id); renderTable(); renderMembers();}
+  const nameSpan=document.createElement('div');nameSpan.className='name';nameSpan.textContent=m.name;
+  const actions=document.createElement('div');actions.className='actions';
+  const edit=document.createElement('button');edit.className='btn';edit.textContent='Edit';edit.onclick=()=>openEdit(m.id);
+  const del=document.createElement('button');del.className='btn';del.textContent='Del';del.onclick=()=>{members=members.filter(x=>x.id!==m.id);selectedMembers.delete(m.id);save();renderMembers();renderTable();};
+  actions.appendChild(edit);actions.appendChild(del);
+  div.appendChild(cb);div.appendChild(nameSpan);div.appendChild(actions);
+  el.appendChild(div);
+});
+}
+
+// Render heatmap as real table, cells wrap and include names/notes
+function renderTable(){const wrap=document.getElementById('tableWrap');wrap.innerHTML='';
+  const table=document.createElement('table');
+  const thead=document.createElement('thead');
+  const trh=document.createElement('tr');
+  const th0=document.createElement('th'); th0.textContent='Time'; th0.className='time-col'; trh.appendChild(th0);
+  days.forEach(d=>{const th=document.createElement('th');th.textContent=d;trh.appendChild(th)});
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody=document.createElement('tbody');
+  for(const t of TIMES){
+    const tr=document.createElement('tr');
+    const th=document.createElement('th'); th.textContent=t; tr.appendChild(th);
+    for(const d of days){
+      const td=document.createElement('td');
+      const wrapDiv=document.createElement('div'); wrapDiv.className='cell-wrap';
+      const cell=document.createElement('div'); cell.className='heatcell h0'; cell.dataset.key=keyFor(d,t);
+      // content
+      cell._names=[]; cell._notes=[];
+      cell.innerHTML = '<div style="font-weight:700;margin-bottom:2px;font-size:10px;opacity:0">0</div><div class="note-dot" style="display:none">•</div>';
+      // hover
+      cell.addEventListener('mousemove',(e)=>showTooltipForCell(e,cell));
+      cell.addEventListener('mouseleave',hideTooltip);
+      wrapDiv.appendChild(cell); td.appendChild(wrapDiv); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); wrap.appendChild(table);
+  updateHeatmap();
+}
+
+function updateHeatmap(){// compute counts for selectedMembers
+  const map = {}; members.forEach(m=>{ if(!selectedMembers.has(m.id)) return; for(const k of m.busy){ map[k] = (map[k]||[]); map[k].push({name:m.name,note:m.notes && m.notes[k]}); }});
+  const cells = document.querySelectorAll('.heatcell'); cells.forEach(c=>{
+    const key=c.dataset.key; 
+    const busyArr = map[key]||[];
+    const busyCnt = busyArr.length;
+    const totalSelected = selectedMembers.size;
+    
+    let cnt, arr, cls, customColor = null;
+    
+    if(invertedView) {
+      // Inverted view: show available people (green shades based on how many are available)
+      const availableCnt = totalSelected - busyCnt;
+      cnt = availableCnt;
+      
+      // Get available people names
+      const busyNames = new Set(busyArr.map(x=>x.name));
+      arr = members.filter(m => selectedMembers.has(m.id) && !busyNames.has(m.name))
+                   .map(m => ({name: m.name, note: null}));
+      
+      // Black -> Dark Red -> Light Red -> Orange -> Yellow -> Yellowish Green -> Light Green -> Green
+      if(availableCnt===0) {
+        customColor = {bg: '#1a1a1a', text: '#ffffff'}; // 0 available - black
+      } else if(availableCnt===1) {
+        customColor = {bg: '#c62828', text: '#ffffff'}; // 1 available - dark red
+      } else if(availableCnt===2) {
+        customColor = {bg: '#ef5350', text: '#ffffff'}; // 2 available - light red
+      } else if(availableCnt===3) {
+        customColor = {bg: '#ff9800', text: '#ffffff'}; // 3 available - orange
+      } else if(availableCnt===4) {
+        customColor = {bg: '#ffeb3b', text: '#2b2b00'}; // 4 available - yellow
+      } else if(availableCnt===5) {
+        customColor = {bg: '#cddc39', text: '#2b2b00'}; // 5 available - yellowish green
+      } else if(availableCnt===6) {
+        customColor = {bg: '#9ccc65', text: '#1b5e20'}; // 6 available - light green
+      } else {
+        customColor = {bg: '#66bb6a', text: '#ffffff'}; // 7+ available - green
+      }
+      cls = 'h0'; // Use as base class
+    } else {
+      // Normal view: show busy people (green->yellow->orange->red shades based on how many are busy)
+      cnt = busyCnt;
+      arr = busyArr;
+      
+      // choose class: 0=free(light green), 1=green, 2=light yellow, 3=yellow, 4=orange, 5=light red, 6+=dark red
+      if(cnt===0) cls='h0';
+      else if(cnt===1) cls='h1'; // Green
+      else if(cnt===2) cls='h2'; // Light yellow
+      else if(cnt===3) cls='h3'; // Yellow
+      else if(cnt===4) cls='h4'; // Orange
+      else if(cnt===5) cls='h5'; // Light red
+      else cls='h6'; // Dark red for 6+
+    }
+    
+    // Apply or remove color based on displayOptions
+    if(displayOptions.showColor) {
+      c.className = 'heatcell '+cls;
+      // Apply custom green colors for inverted view
+      if(invertedView && customColor) {
+        c.style.backgroundColor = customColor.bg;
+        c.style.color = customColor.text;
+      } else {
+        c.style.backgroundColor = '';
+        c.style.color = '';
+      }
+    } else {
+      c.className = 'heatcell h0'; // Always show as free color if color disabled
+      c.style.backgroundColor = '';
+      c.style.color = '';
+    }
+    
+    // build inner html based on display options
+    let html = '';
+    const names = arr.map(x=>x.name);
+    const notes = arr.map(x=> x.note ? (x.name+': '+x.note) : null).filter(Boolean);
+    
+    // Calculate gap hours if enabled and we're at the target time (only in availability view)
+    const [day, time] = key.split('|');
+    let gapHoursData = [];
+    if(displayOptions.showGapHours && time === displayOptions.gapHourTarget && invertedView) {
+      // For each available person in this cell, calculate their gap hours (only if they live off-campus)
+      arr.forEach(person => {
+        const member = members.find(m => m.name === person.name);
+        if(member && member.livesOffCampus) {
+          const gap = calculateGapHours(member, day, time);
+          if(gap > 0) {
+            gapHoursData.push({name: person.name, gap: gap});
+          }
+        }
+      });
+    }
+    
+    if(cnt===0) {
+      // No one - show placeholder space to maintain size
+      html = '<div style="font-weight:700;margin-bottom:1px;font-size:10px;opacity:0">0</div>';
+    } else {
+      // Build content based on options
+      if(displayOptions.showCount) {
+        let countText = cnt.toString();
+        // Add total gap hours if enabled and in availability view at target time
+        if(displayOptions.showGapHours && time === displayOptions.gapHourTarget && invertedView && gapHoursData.length > 0) {
+          const totalGap = gapHoursData.reduce((sum, g) => sum + g.gap, 0);
+          countText += ' • ' + totalGap + 'h';
+        }
+        html += '<div style="font-weight:700;margin-bottom:1px;font-size:10px">'+countText+'</div>';
+      }
+      if(displayOptions.showNames) {
+        // Build names with gap hours if enabled (in availability view)
+        let namesDisplay = names.map(name => {
+          if(displayOptions.showGapHours && time === displayOptions.gapHourTarget && invertedView) {
+            const gapInfo = gapHoursData.find(g => g.name === name);
+            return gapInfo && gapInfo.gap > 0 ? name + ' [' + gapInfo.gap + ']' : name;
+          }
+          return name;
+        });
+        html += '<div style="font-size:9px;line-height:1.1;font-weight:500">'+namesDisplay.join(', ')+'</div>';
+      }
+      if(displayOptions.showNotes && notes.length && !invertedView) {
+        html += '<div style="margin-top:1px;font-size:8px;line-height:1.1;font-weight:500">'+notes.join('<br>')+'</div>';
+      }
+    }
+    
+    const hasNote = notes.length > 0 && !invertedView;
+    html += '<div class="note-dot" style="display:'+(hasNote && displayOptions.showNotes?'flex':'none')+'">•</div>';
+    c.innerHTML = html;
+    c._names = arr.map(x=>x.name); c._notes = invertedView ? [] : arr.map(x=> x.note ? x.name+': '+x.note : '').filter(Boolean);
+  });
+  document.getElementById('status').textContent = selectedMembers.size + ' members selected';
+}
+
+function showTooltipForCell(e,cell){const t=document.getElementById('tooltip'); const names=cell._names||[]; const notes=cell._notes||[];
+  let html=''; 
+  if(invertedView) {
+    // Inverted view tooltip
+    if(names.length){ 
+      html += '<strong>'+names.length+' available</strong><div style="margin-top:6px">'+names.join(', ')+'</div>'; 
+    } else {
+      html = '<strong>No one available</strong>';
+    }
+  } else {
+    // Normal view tooltip
+    if(names.length){ 
+      html += '<strong>'+names.length+' busy</strong><div style="margin-top:6px">'+names.join(', ')+'</div>'; 
+      if(notes.length) html += '<div style="margin-top:6px;color:#9aa4b2">Notes:<br>'+notes.join('<br>')+'</div>'; 
+    } else {
+      html = '<strong>Available</strong>';
+    }
+  }
+  t.innerHTML = html; t.style.display='block'; let x=e.clientX+12; let y=e.clientY+12; t.style.left=x+'px'; t.style.top=y+'px';
+}
+function hideTooltip(){const t=document.getElementById('tooltip'); t.style.display='none';}
+
+// Edit member
+function openEdit(id){editingId=id; const m = members.find(x=>x.id===id); if(!m) return; document.getElementById('editName').textContent = 'Edit: '+m.name; document.getElementById('editHint').textContent = 'Click to toggle busy, right-click for notes'; document.getElementById('editOverlay').style.display='flex'; document.getElementById('livesOffCampusCheckbox').checked = m.livesOffCampus||false; renderEditGrid(m);} 
+function renderEditGrid(m){const el=document.getElementById('editGrid'); el.innerHTML=''; el.style.setProperty('--days', days.length);
+  // header
+  const corner=document.createElement('div'); corner.style.height='40px'; corner.style.display='flex'; corner.style.alignItems='center'; corner.style.justifyContent='center'; corner.textContent='Time'; el.appendChild(corner);
+  days.forEach(d=>{const h=document.createElement('div');h.style.height='40px';h.style.display='flex';h.style.alignItems='center';h.style.justifyContent='center';h.textContent=d;el.appendChild(h)});
+  // rows
+  for(const t of TIMES){
+    const timeCell=document.createElement('div');timeCell.className='time-cell';timeCell.textContent=t;el.appendChild(timeCell);
+    for(const d of days){
+      const key=keyFor(d,t);
+      const cell=document.createElement('div'); cell.className='edit-cell'; cell.dataset.key=key;
+      if(m.busy.has(key)) cell.classList.add('selected');
+      // left click toggle
+      cell.addEventListener('click',()=>{ 
+        const member = members.find(x=>x.id===editingId); 
+        if(!member) return;
+        if(member.busy.has(key)) member.busy.delete(key); 
+        else member.busy.add(key); 
+        renderEditGrid(member); 
+      });
+      // right click note
+      cell.addEventListener('contextmenu',(ev)=>{ 
+        ev.preventDefault(); 
+        const member = members.find(x=>x.id===editingId); 
+        if(!member) return;
+        const existing = member.notes[key]||''; 
+        const note = prompt('Note for '+d+' '+t, existing); 
+        if(note===null) return; 
+        if(note.trim()==='') delete member.notes[key]; 
+        else member.notes[key]=note; 
+        renderEditGrid(member); 
+      });
+      // show dot if note exists
+      if(m.notes && m.notes[key]){ const n=document.createElement('div'); n.className='note-dot'; n.title = m.notes[key]; cell.appendChild(n); }
+      el.appendChild(cell);
+    }
+  }
+}
+
+// Controls
+document.getElementById('addMemberQuick').onclick = ()=>{const nm=document.getElementById('newMemberName').value.trim(); if(!nm) return; addMember(nm); document.getElementById('newMemberName').value='';}
+function addMember(name){const m={id:uid(),name,busy:new Set(),notes:{},livesOffCampus:false}; members.push(m); save(); renderMembers(); renderTable();}
+
+// Select/Deselect all members
+document.getElementById('selectAllMembers').onclick = ()=>{ members.forEach(m => selectedMembers.add(m.id)); renderMembers(); renderTable(); }
+document.getElementById('deselectAllMembers').onclick = ()=>{ selectedMembers.clear(); renderMembers(); renderTable(); }
+
+document.getElementById('toggleWeekends').onclick = ()=>{ 
+  const btn = document.getElementById('toggleWeekends');
+  if(days.length>5){ 
+    days=ALL_DAYS.slice(0,5); 
+    btn.textContent='Show Weekends';
+    btn.classList.remove('active');
+  } else { 
+    days=ALL_DAYS.slice(); 
+    btn.textContent='Hide Weekends';
+    btn.classList.add('active');
+  } 
+  save(); 
+  renderTable(); 
+  renderMembers();
+}
+
+document.getElementById('invertView').onclick = ()=>{ 
+  invertedView = !invertedView; 
+  const btn = document.getElementById('invertView');
+  const legendItems = document.querySelectorAll('.legend .item .sw');
+  const extraItem = document.getElementById('legendExtra');
+  const extraSw = document.getElementById('legendExtraSw');
+  const extraText = document.getElementById('legendExtraText');
+  
+  if(invertedView) {
+    btn.textContent = 'Show Busy';
+    btn.classList.add('active');
+    // Update legend for availability view: black->dark red->light red->orange->yellow->yellowish green->light green->green
+    document.getElementById('legendH0').textContent = '7+';
+    legendItems[0].style.background = '#66bb6a'; // Green
+    document.getElementById('legendH1').textContent = '6';
+    legendItems[1].style.background = '#9ccc65'; // Light green
+    document.getElementById('legendH2').textContent = '5';
+    legendItems[2].style.background = '#cddc39'; // Yellowish green
+    document.getElementById('legendH3').textContent = '4';
+    legendItems[3].style.background = '#ffeb3b'; // Yellow
+    document.getElementById('legendH4').textContent = '3';
+    legendItems[4].style.background = '#ff9800'; // Orange
+    document.getElementById('legendH5').textContent = '2';
+    legendItems[5].style.background = '#ef5350'; // Light red
+    document.getElementById('legendH6').textContent = '1';
+    legendItems[6].style.background = '#c62828'; // Dark red
+    // Show extra legend item
+    extraItem.style.display = 'flex';
+    extraSw.style.background = '#1a1a1a'; // Black
+    extraText.textContent = '0';
+    document.getElementById('legendCaption').textContent = 'Available';
+  } else {
+    btn.textContent = 'Show Availability';
+    btn.classList.remove('active');
+    // Hide extra item
+    extraItem.style.display = 'none';
+    // Update legend for busy view with original colors (green->yellow->orange->red)
+    document.getElementById('legendH0').textContent = '0';
+    legendItems[0].style.background = '';
+    document.getElementById('legendH1').textContent = '1';
+    legendItems[1].style.background = '';
+    document.getElementById('legendH2').textContent = '2';
+    legendItems[2].style.background = '';
+    document.getElementById('legendH3').textContent = '3';
+    legendItems[3].style.background = '';
+    document.getElementById('legendH4').textContent = '4';
+    legendItems[4].style.background = '';
+    document.getElementById('legendH5').textContent = '5';
+    legendItems[5].style.background = '';
+    document.getElementById('legendH6').textContent = '6+';
+    legendItems[6].style.background = '';
+    document.getElementById('legendCaption').textContent = 'Busy count';
+  }
+  updateHeatmap(); 
+}
+
+document.getElementById('closeEdit').onclick = ()=>{document.getElementById('editOverlay').style.display='none'; save(); renderTable();}
+document.getElementById('saveEdit').onclick = ()=>{
+  const m = members.find(x=>x.id===editingId);
+  if(m) m.livesOffCampus = document.getElementById('livesOffCampusCheckbox').checked;
+  document.getElementById('editOverlay').style.display='none'; 
+  save(); 
+  renderTable();
+}
+
+// Export menu behavior
+const exportBtn = document.getElementById('exportBtn'); const exportMenu = document.getElementById('exportMenu');
+exportBtn.addEventListener('click',(e)=>{ e.stopPropagation(); exportMenu.style.display = exportMenu.style.display==='block' ? 'none' : 'block'; });
+window.addEventListener('click',(e)=>{ if(!exportMenu.contains(e.target) && e.target!==exportBtn) exportMenu.style.display='none'; });
+exportMenu.addEventListener('click',(e)=>{ 
+  const act = e.target.dataset.act; 
+  if(!act) {
+    e.stopPropagation(); // Prevent closing when clicking input or label
+    return;
+  }
+  exportMenu.style.display='none'; 
+  if(act==='json') exportJSON(); 
+  if(act==='csv') exportCSV(); 
+  if(act==='png') exportPNG(); 
+  if(act==='static') exportStaticHTML(); 
+  if(act==='dynamic') exportDynamicHTML(); 
+});
+
+// Display menu behavior
+const displayBtn = document.getElementById('displayBtn'); const displayMenu = document.getElementById('displayMenu');
+displayBtn.addEventListener('click',(e)=>{ e.stopPropagation(); displayMenu.style.display = displayMenu.style.display==='block' ? 'none' : 'block'; });
+window.addEventListener('click',(e)=>{ 
+  if(!displayMenu.contains(e.target) && e.target!==displayBtn) displayMenu.style.display='none'; 
+  if(!exportMenu.contains(e.target) && e.target!==exportBtn) exportMenu.style.display='none'; 
+});
+// Prevent closing when clicking inside display menu
+displayMenu.addEventListener('click',(e)=>{ e.stopPropagation(); });
+
+// Display options checkboxes
+document.getElementById('showCount').addEventListener('change',(e)=>{ displayOptions.showCount = e.target.checked; updateHeatmap(); });
+document.getElementById('showNames').addEventListener('change',(e)=>{ displayOptions.showNames = e.target.checked; updateHeatmap(); });
+document.getElementById('showColor').addEventListener('change',(e)=>{ displayOptions.showColor = e.target.checked; updateHeatmap(); });
+document.getElementById('showNotes').addEventListener('change',(e)=>{ displayOptions.showNotes = e.target.checked; updateHeatmap(); });
+document.getElementById('showGapHours').addEventListener('change',(e)=>{ 
+  displayOptions.showGapHours = e.target.checked; 
+  document.getElementById('gapHourSelector').style.display = e.target.checked ? 'block' : 'none';
+  updateHeatmap(); 
+});
+document.getElementById('gapHourTarget').addEventListener('change',(e)=>{ 
+  displayOptions.gapHourTarget = e.target.value; 
+  updateHeatmap(); 
+});
+
+// Export implementations
+function exportJSON(){const data={days,TIMES,members:members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes}))}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); download(blob,'schedules.json');}
+function exportCSV(){let rows=[]; members.forEach(m=>{Array.from(m.busy).forEach(k=>{const [d,t]=k.split('|'); const note = m.notes && m.notes[k] ? '"'+m.notes[k].replace(/"/g,'""')+'"' : ''; rows.push(['"'+m.name.replace(/"/g,'""')+'"',d,t,note]);});}); let csv='member,day,time,note\n'+rows.map(r=>r.join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); download(blob,'schedules.csv');}
+
+function exportPNG(){
+  const mainEl = document.querySelector('.main');
+  if(!mainEl) return;
+  
+  // Get export title
+  const titleInput = document.getElementById('exportTitle');
+  const exportTitle = titleInput && titleInput.value.trim() ? titleInput.value.trim() : 'Team Schedule Heatmap';
+  
+  // Generate filename from title
+  const filename = exportTitle.toLowerCase().replace(/\s+/g, '_') + '.png';
+  
+  // Create a clone of the main section for export
+  const clone = mainEl.cloneNode(true);
+  clone.style.cssText = `
+    position: fixed;
+    left: 0;
+    top: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+    padding: 20px;
+    border-radius: 12px;
+    visibility: hidden;
+    pointer-events: none;
+  `;
+  
+  // Add title at the top
+  const titleDiv = document.createElement('div');
+  titleDiv.style.cssText = 'color: #6ee7b7; font-weight: 600; font-size: 18px; margin-bottom: 12px; font-family: Inter, system-ui, sans-serif;';
+  titleDiv.textContent = exportTitle;
+  clone.insertBefore(titleDiv, clone.firstChild);
+  
+  document.body.appendChild(clone);
+  
+  // Wait for render, then capture
+  requestAnimationFrame(() => {
+    const rect = clone.getBoundingClientRect();
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    canvas.width = rect.width * scale;
+    canvas.height = rect.height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    
+    // Helper function to wrap text
+    const wrapText = (text, maxWidth) => {
+      const words = text.split(/,\s*/); // Split by comma and space
+      const lines = [];
+      let currentLine = '';
+      
+      words.forEach((word, idx) => {
+        const testLine = currentLine ? currentLine + ', ' + word : word;
+        const metrics = ctx.measureText(testLine);
+        
+        if(metrics.width > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      });
+      
+      if(currentLine) {
+        lines.push(currentLine);
+      }
+      
+      return lines;
+    };
+    
+    // Background
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, rect.height);
+    bgGradient.addColorStop(0, 'rgba(255,255,255,0.015)');
+    bgGradient.addColorStop(1, 'rgba(255,255,255,0.01)');
+    ctx.fillStyle = '#071122';
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    
+    // Draw title
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = '600 18px Inter, system-ui, sans-serif';
+    ctx.fillText(exportTitle, 20, 35);
+    
+    // Get the table
+    const table = clone.querySelector('table');
+    if(table) {
+      const tableRect = table.getBoundingClientRect();
+      const cloneRect = clone.getBoundingClientRect();
+      const offsetX = tableRect.left - cloneRect.left;
+      const offsetY = tableRect.top - cloneRect.top;
+      
+      // Draw table headers and cells
+      const allRows = table.querySelectorAll('tr');
+      let rowY = offsetY;
+      
+      allRows.forEach((row, rowIndex) => {
+        const cells = row.querySelectorAll('th, td');
+        let cellX = offsetX;
+        
+        cells.forEach((cell) => {
+          const cellRect = cell.getBoundingClientRect();
+          const cellWidth = cellRect.width;
+          const cellHeight = cellRect.height;
+          
+          const cellStyles = window.getComputedStyle(cell);
+          
+          // Draw cell background
+          ctx.fillStyle = cellStyles.backgroundColor;
+          ctx.fillRect(cellX, rowY, cellWidth, cellHeight);
+          
+          // Draw border
+          ctx.strokeStyle = cellStyles.borderColor || 'rgba(255,255,255,0.03)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(cellX, rowY, cellWidth, cellHeight);
+          
+          // Handle header cells
+          if(cell.tagName === 'TH') {
+            ctx.fillStyle = cellStyles.color;
+            ctx.font = `600 ${cellStyles.fontSize} ${cellStyles.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const text = cell.textContent.trim();
+            ctx.fillText(text, cellX + cellWidth/2, rowY + cellHeight/2);
+          } else {
+            // Handle data cells with heatcell
+            const heatcell = cell.querySelector('.heatcell');
+            if(heatcell) {
+              const heatStyles = window.getComputedStyle(heatcell);
+              const padding = 2;
+              
+              // Draw heatcell background with rounded corners
+              const x = cellX + padding;
+              const y = rowY + padding;
+              const w = cellWidth - padding * 2;
+              const h = cellHeight - padding * 2;
+              const radius = 4;
+              
+              ctx.beginPath();
+              ctx.moveTo(x + radius, y);
+              ctx.lineTo(x + w - radius, y);
+              ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+              ctx.lineTo(x + w, y + h - radius);
+              ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+              ctx.lineTo(x + radius, y + h);
+              ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+              ctx.lineTo(x, y + radius);
+              ctx.quadraticCurveTo(x, y, x + radius, y);
+              ctx.closePath();
+              ctx.fillStyle = heatStyles.backgroundColor;
+              ctx.fill();
+              
+              // Draw text content
+              ctx.fillStyle = heatStyles.color;
+              ctx.textAlign = 'center';
+              
+              // Get all child elements and render their text
+              const children = Array.from(heatcell.children);
+              let textY = y + 5;
+              
+              children.forEach((child) => {
+                if(child.classList && child.classList.contains('note-dot')) return;
+                
+                const childStyles = window.getComputedStyle(child);
+                if(childStyles.opacity === '0') return;
+                
+                const text = child.textContent.trim();
+                if(!text) return;
+                
+                ctx.font = `${childStyles.fontWeight} ${childStyles.fontSize} ${childStyles.fontFamily}`;
+                ctx.textBaseline = 'top';
+                
+                // Check if this is a names line (font-size: 9px) and wrap if needed
+                const isNamesLine = parseFloat(childStyles.fontSize) === 9;
+                const maxCellWidth = w - 6; // Leave some padding
+                
+                if(isNamesLine && text.length > 15) {
+                  // Wrap long names
+                  const wrappedLines = wrapText(text, maxCellWidth);
+                  wrappedLines.forEach(wrappedLine => {
+                    if(textY < y + h - 5) {
+                      ctx.fillText(wrappedLine, cellX + cellWidth/2, textY);
+                      textY += parseFloat(childStyles.fontSize) + 1;
+                    }
+                  });
+                } else {
+                  // Handle line breaks for other content
+                  const lines = text.split('\n').filter(l => l.trim());
+                  lines.forEach(line => {
+                    const trimmed = line.trim();
+                    if(trimmed && textY < y + h - 5) {
+                      ctx.fillText(trimmed, cellX + cellWidth/2, textY);
+                      textY += parseFloat(childStyles.fontSize) + 2;
+                    }
+                  });
+                }
+                
+                textY += 2; // spacing between elements
+              });
+            }
+          }
+          
+          cellX += cellWidth;
+        });
+        
+        rowY += cells[0] ? cells[0].getBoundingClientRect().height : 0;
+      });
+    }
+    
+    // Draw legend
+    const legend = clone.querySelector('.legend');
+    if(legend) {
+      const legendRect = legend.getBoundingClientRect();
+      const cloneRect = clone.getBoundingClientRect();
+      const legendX = legendRect.left - cloneRect.left;
+      const legendY = legendRect.top - cloneRect.top;
+      
+      const items = legend.querySelectorAll('.item');
+      let currentX = legendX;
+      
+      items.forEach((item) => {
+        const swatch = item.querySelector('.sw');
+        const swatchStyles = window.getComputedStyle(swatch);
+        const text = item.textContent.trim();
+        
+        // Draw swatch
+        ctx.fillStyle = swatchStyles.backgroundColor;
+        ctx.fillRect(currentX, legendY + 2, 16, 12);
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(currentX, legendY + 2, 16, 12);
+        
+        // Draw text
+        ctx.fillStyle = '#9aa4b2';
+        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(text, currentX + 20, legendY + 3);
+        
+        currentX += ctx.measureText(text).width + 40;
+      });
+    }
+    
+    // Cleanup and download
+    document.body.removeChild(clone);
+    
+    canvas.toBlob((blob) => {
+      download(blob, filename);
+    }, 'image/png');
+  });
+}
+
+function exportStaticHTML(){const html = buildExportHTML({dynamic:false}); const blob=new Blob([html],{type:'text/html'}); download(blob,'schedules-static.html');}
+function exportDynamicHTML(){const html = buildExportHTML({dynamic:true}); const blob=new Blob([html],{type:'text/html'}); download(blob,'schedules-dynamic.html');}
+
+function buildExportHTML(opts){const data = {days,TIMES,members:members.map(m=>({name:m.name,busy:Array.from(m.busy),notes:m.notes}))};
+  const daysHtml = data.days.map(d=>`<th>${d}</th>`).join('');
+  let body=''; TIMES.forEach(t=>{ body += '<tr><th>'+t+'</th>'; data.days.forEach(d=>{ const k=d+'|'+t; const names=[]; const notes=[]; data.members.forEach(m=>{ if(m.busy.includes(k)){ names.push(m.name); if(m.notes && m.notes[k]) notes.push(m.name+': '+m.notes[k]); }}); let txt=''; if(names.length) txt = '<div><strong>'+names.length+' busy</strong><div>' + names.join(', ') + '</div>' + (notes.length?('<div style="margin-top:6px">Notes:<br>'+notes.join('<br>')+'</div>'):'') + '</div>'; else txt = '<div>Free</div>'; body += '<td>'+txt+'</td>'; }); body += '</tr>'; });
+  const style = '<style>body{font-family:system-ui,Arial;padding:12px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#f7fafc}</style>';
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Schedules</title>${style}</head><body><h3>Exported schedules</h3><table><thead><tr><th>Time</th>${daysHtml}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+}
+
+function download(blob,filename){const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);} 
+
+// init
+load(); if(members.length===0){ addMember('Alice'); addMember('Bob'); addMember('Charlie'); }
+renderMembers(); renderTable();
+</script>
+</body>
+</html>
