@@ -1,3 +1,3 @@
-# Screw Dislocation Animation
+# Screw Dislocation Motion Animation
 
-Static web app that simulates Screw Dislocations in lattice atomic structures.
+Web app that simulates Screw Dislocations Motion in lattice atomic structure.
