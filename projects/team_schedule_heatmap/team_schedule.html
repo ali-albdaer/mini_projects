@@ -684,19 +684,19 @@ document.getElementById('invertView').onclick = ()=>{
     extraItem.style.display = 'none';
     // Update legend for busy view with original colors (green->yellow->orange->red)
     document.getElementById('legendH0').textContent = '0';
-    legendItems[0].style.background = '';
+    legendItems[0].style.background = 'var(--h0)';
     document.getElementById('legendH1').textContent = '1';
-    legendItems[1].style.background = '';
+    legendItems[1].style.background = 'var(--h1)';
     document.getElementById('legendH2').textContent = '2';
-    legendItems[2].style.background = '';
+    legendItems[2].style.background = 'var(--h2)';
     document.getElementById('legendH3').textContent = '3';
-    legendItems[3].style.background = '';
+    legendItems[3].style.background = 'var(--h3)';
     document.getElementById('legendH4').textContent = '4';
-    legendItems[4].style.background = '';
+    legendItems[4].style.background = 'var(--h4)';
     document.getElementById('legendH5').textContent = '5';
-    legendItems[5].style.background = '';
+    legendItems[5].style.background = 'var(--h5)';
     document.getElementById('legendH6').textContent = '6+';
-    legendItems[6].style.background = '';
+    legendItems[6].style.background = 'var(--h6)';
     document.getElementById('legendCaption').textContent = CONFIG.ui.legendBusyCaption;
   }
   updateHeatmap(); 
