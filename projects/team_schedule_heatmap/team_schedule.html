@@ -283,8 +283,121 @@ function calculateGapHours(member, day, targetTime) {
   return targetIndex - lastBusyIndex - 1;
 }
 
-function save(){const serial = members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false})); localStorage.setItem(STORAGE_KEY,JSON.stringify({members:serial,days}));}
-function load(){const raw=localStorage.getItem(STORAGE_KEY);if(!raw) return; try{const obj=JSON.parse(raw);members=(obj.members||[]).map(m=>({id:m.id,name:m.name,busy:new Set(m.busy||[]),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false})); days=obj.days||days;}catch(e){console.warn(e)}}
+// Validate HH:MM (24h) time format
+function isValidTime(str){
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(str);
+}
+
+// When a time label changes, migrate member busy/note keys from old to new
+function migrateKeysForTimeChange(oldTime, newTime){
+  if(oldTime === newTime) return;
+  members.forEach(m => {
+    // Busy set migration across all possible days
+    ALL_DAYS.forEach(d => {
+      const oldKey = keyFor(d, oldTime);
+      if(m.busy.has(oldKey)){
+        m.busy.delete(oldKey);
+        m.busy.add(keyFor(d, newTime));
+      }
+    });
+    // Notes migration
+    if(m.notes){
+      ALL_DAYS.forEach(d => {
+        const oldKey = keyFor(d, oldTime);
+        if(Object.prototype.hasOwnProperty.call(m.notes, oldKey)){
+          const val = m.notes[oldKey];
+          const newKey = keyFor(d, newTime);
+          m.notes[newKey] = val;
+          delete m.notes[oldKey];
+        }
+      });
+    }
+  });
+}
+
+// Update UI elements that depend on the time slots (header info, gap hour selector)
+function updateTimeSlotsUI(fromLoad=false){
+  // Update header slots info (first-last)
+  const firstTime = TIMES[0];
+  const lastTime = TIMES[TIMES.length - 1];
+  const slotsInfoEl = document.getElementById('slotsInfo');
+  if(slotsInfoEl){
+    slotsInfoEl.textContent = `${firstTime}-${lastTime} ${CONFIG.ui.slotsInfo}`;
+  }
+
+  // Repopulate gap hour target dropdown to reflect current TIMES
+  const gapHourSelect = document.getElementById('gapHourTarget');
+  if(gapHourSelect){
+    const current = displayOptions.gapHourTarget;
+    gapHourSelect.innerHTML = '';
+    TIMES.forEach(time => {
+      const option = document.createElement('option');
+      option.value = time;
+      option.textContent = time;
+      gapHourSelect.appendChild(option);
+    });
+    // Keep selection if still valid, else fall back to last slot
+    const target = TIMES.includes(current) ? current : TIMES[TIMES.length - 1];
+    gapHourSelect.value = target;
+    displayOptions.gapHourTarget = target;
+  }
+
+  // If called after load, ensure any render follows
+  if(fromLoad){
+    // No-op here; initial render happens after load()
+  }
+}
+
+// Edit a time at a given index with validation and migration
+function editTimeAtIndex(index){
+  const current = TIMES[index];
+  const input = prompt('Enter time (HH:MM)', current);
+  if(input === null) return; // cancelled
+  const newTime = input.trim();
+  if(!isValidTime(newTime)){
+    alert('Invalid time format. Use HH:MM (24-hour).');
+    return;
+  }
+  if(TIMES.includes(newTime) && newTime !== current){
+    alert('This time already exists. Please choose a unique time.');
+    return;
+  }
+  if(newTime === current) return;
+
+  // Migrate data keys then update the TIMES array entry
+  migrateKeysForTimeChange(current, newTime);
+  TIMES[index] = newTime;
+
+  // Persist and update UI
+  save();
+  updateTimeSlotsUI();
+  renderTable();
+  // If edit overlay is open, re-render grid so labels reflect new times
+  if(editingId){
+    const m = members.find(x=>x.id===editingId);
+    if(m) renderEditGrid(m);
+  }
+}
+
+function save(){
+  const serial = members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false}));
+  const payload = {members:serial,days,times:Array.from(TIMES)};
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+function load(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return;
+  try{
+    const obj = JSON.parse(raw);
+    members = (obj.members||[]).map(m=>({id:m.id,name:m.name,busy:new Set(m.busy||[]),notes:m.notes||{},livesOffCampus:m.livesOffCampus||false}));
+    days = obj.days || days;
+    if(Array.isArray(obj.times) && obj.times.length){
+      // Mutate TIMES array in-place to preserve references
+      TIMES.splice(0, TIMES.length, ...obj.times);
+      updateTimeSlotsUI(true);
+    }
+  }catch(e){console.warn(e)}
+}
 
 // UI render
 function renderMembers(){const el=document.getElementById('membersList');el.innerHTML='';members.forEach(m=>{
@@ -309,9 +422,12 @@ function renderTable(){const wrap=document.getElementById('tableWrap');wrap.inne
   days.forEach(d=>{const th=document.createElement('th');th.textContent=d;trh.appendChild(th)});
   thead.appendChild(trh); table.appendChild(thead);
   const tbody=document.createElement('tbody');
-  for(const t of TIMES){
+  for(let i=0;i<TIMES.length;i++){
+    const t = TIMES[i];
     const tr=document.createElement('tr');
-    const th=document.createElement('th'); th.textContent=t; tr.appendChild(th);
+    const th=document.createElement('th'); th.textContent=t; th.title='Double-click to edit time'; th.style.cursor='pointer';
+    th.addEventListener('dblclick', ()=> editTimeAtIndex(i));
+    tr.appendChild(th);
     for(const d of days){
       const td=document.createElement('td');
       const wrapDiv=document.createElement('div'); wrapDiv.className='cell-wrap';
