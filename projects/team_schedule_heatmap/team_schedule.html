@@ -72,8 +72,8 @@ html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #08
 <body>
 <div class="app">
   <div class="header">
-    <div class="brand">Team Schedule Heatmap</div>
-    <div class="small">08:40-17:40 slots • Hover for details • Export: JSON, CSV, PNG, HTML</div>
+    <div class="brand" id="appTitle">Team Schedule Heatmap</div>
+    <div class="small" id="slotsInfo">08:40-17:40 slots • Hover for details • Export: JSON, CSV, PNG, HTML</div>
     <div class="controls">
       <button class="btn toggle" id="toggleWeekends">Show Weekends</button>
       <button class="btn toggle" id="invertView">Show Availability</button>
@@ -87,16 +87,7 @@ html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #08
         <div id="gapHourSelector" style="display:none;margin:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.01)">
           <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:500">Target hour:</label>
           <select id="gapHourTarget" style="width:100%;background:#0f1728;border:1px solid rgba(255,255,255,0.04);padding:7px 10px;border-radius:8px;color:#d0dae6;font-size:14px;font-weight:500;cursor:pointer;outline:none">
-            <option value="08:40">08:40</option>
-            <option value="09:40">09:40</option>
-            <option value="10:40">10:40</option>
-            <option value="11:40">11:40</option>
-            <option value="12:40">12:40</option>
-            <option value="13:40">13:40</option>
-            <option value="14:40">14:40</option>
-            <option value="15:40">15:40</option>
-            <option value="16:40">16:40</option>
-            <option value="17:40" selected>17:40</option>
+            <!-- Options will be populated dynamically from CONFIG.timeSlots -->
           </select>
         </div>
       </div>
@@ -104,7 +95,7 @@ html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #08
       <div class="export-menu" id="exportMenu">
         <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04)">
           <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Export Title:</label>
-          <input type="text" id="exportTitle" class="input" placeholder="Team Schedule Heatmap" style="font-size:12px;padding:4px 6px">
+          <input type="text" id="exportTitle" class="input" placeholder="" style="font-size:12px;padding:4px 6px">
         </div>
         <button data-act="json">Export JSON</button>
         <button data-act="csv">Export CSV</button>
@@ -141,7 +132,7 @@ html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #08
         <div class="item"><div class="sw" style="background:var(--h6)"></div><span id="legendH6">6+</span></div>
         <div class="item" id="legendExtra" style="display:none"><div class="sw" id="legendExtraSw"></div><span id="legendExtraText"></span></div>
       </div>
-      <div class="footer"><div id="status">No members selected</div><div class="small" id="legendCaption">Busy count</div></div>
+      <div class="footer"><div id="status"></div><div class="small" id="legendCaption"></div></div>
     </div>
   </div>
 </div>
@@ -166,25 +157,106 @@ html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%, #08
   </div>
 </div>
 <script>
-// Data model
-const TIMES = ['08:40','09:40','10:40','11:40','12:40','13:40','14:40','15:40','16:40','17:40'];
-const ALL_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-let days = ALL_DAYS.slice(0,5); // default weekdays
+// ==========================================
+// CONFIGURATION SECTION
+// ==========================================
+// 
+// Customize the application by modifying the CONFIG object below.
+// 
+// What you can configure:
+// - timeSlots: Array of time slots (e.g., ['09:00', '10:00', '11:00'])
+// - allDays: Day names and order (e.g., ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+// - defaultWorkDays: How many days to show initially (5 = weekdays only)
+// - defaultMembers: Initial team members when no saved data exists
+// - appTitle: Application title displayed in header
+// - ui: All button text, labels, and messages
+// - export: Default filenames and settings for exports
+// - availabilityColors: Color scheme for availability view
+// - layout: Column widths and dimensions (requires CSS knowledge)
+//
+const CONFIG = {
+  // Time slots configuration
+  timeSlots: ['08:40','09:40','10:40','11:40','12:40','13:40','14:40','15:40','16:40','17:40'],
+  
+  // Days configuration
+  allDays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+  defaultWorkDays: 5, // Show first N days by default (5 = weekdays only)
+  
+  // Default members (added when no saved data exists)
+  defaultMembers: ['Alice', 'Bob', 'Charlie'],
+  
+  // Storage configuration
+  storageKey: 'team_schedule_heatmap_v1',
+  
+  // Application settings
+  appTitle: 'Team Schedule Heatmap',
+  
+  // Default display options
+  defaultDisplayOptions: {
+    showCount: true,
+    showNames: true,
+    showColor: true,
+    showNotes: true,
+    showGapHours: false,
+    gapHourTarget: '17:40' // Should match last time slot
+  },
+  
+  // UI Text configuration
+  ui: {
+    showWeekendsBtn: 'Show Weekends',
+    hideWeekendsBtn: 'Hide Weekends',
+    showAvailabilityBtn: 'Show Availability',
+    showBusyBtn: 'Show Busy',
+    legendBusyCaption: 'Busy count',
+    legendAvailableCaption: 'Available',
+    noMembersSelected: 'No members selected',
+    slotsInfo: 'slots • Hover for details • Export: JSON, CSV, PNG, HTML'
+  },
+  
+  // Export settings
+  export: {
+    defaultTitle: 'Team Schedule Heatmap',
+    jsonFilename: 'schedules.json',
+    csvFilename: 'schedules.csv',
+    staticHtmlFilename: 'schedules-static.html',
+    dynamicHtmlFilename: 'schedules-dynamic.html'
+  },
+  
+  // Color scheme for heatmap (availability view - inverted)
+  availabilityColors: {
+    0: {bg: '#1a1a1a', text: '#ffffff'}, // 0 available - black
+    1: {bg: '#c62828', text: '#ffffff'}, // 1 available - dark red
+    2: {bg: '#ef5350', text: '#ffffff'}, // 2 available - light red
+    3: {bg: '#ff9800', text: '#ffffff'}, // 3 available - orange
+    4: {bg: '#ffeb3b', text: '#2b2b00'}, // 4 available - yellow
+    5: {bg: '#cddc39', text: '#2b2b00'}, // 5 available - yellowish green
+    6: {bg: '#9ccc65', text: '#1b5e20'}, // 6 available - light green
+    7: {bg: '#66bb6a', text: '#1b5e20'}  // 7+ available - green
+  },
+  
+  // Layout settings
+  layout: {
+    timeColumnWidth: '70px',
+    cellHeight: '50px',
+    sidebarWidth: '240px',
+    maxAppWidth: '1400px'
+  }
+};
+
+// ==========================================
+// DATA MODEL (using config values)
+// ==========================================
+const TIMES = CONFIG.timeSlots;
+const ALL_DAYS = CONFIG.allDays;
+let days = ALL_DAYS.slice(0, CONFIG.defaultWorkDays);
 let members = [];
 let selectedMembers = new Set();
 let editingId = null;
 let invertedView = false;
-const STORAGE_KEY = 'team_schedule_heatmap_v1';
+const STORAGE_KEY = CONFIG.storageKey;
 
-// Display options
-let displayOptions = {
-  showCount: true,
-  showNames: true,
-  showColor: true,
-  showNotes: true,
-  showGapHours: false,
-  gapHourTarget: '17:40'
-};
+// Display options (initialized from config)
+let displayOptions = {...CONFIG.defaultDisplayOptions};
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function keyFor(d,t){return d+'|'+t}
@@ -278,24 +350,8 @@ function updateHeatmap(){// compute counts for selectedMembers
       arr = members.filter(m => selectedMembers.has(m.id) && !busyNames.has(m.name))
                    .map(m => ({name: m.name, note: null}));
       
-      // Black -> Dark Red -> Light Red -> Orange -> Yellow -> Yellowish Green -> Light Green -> Green
-      if(availableCnt===0) {
-        customColor = {bg: '#1a1a1a', text: '#ffffff'}; // 0 available - black
-      } else if(availableCnt===1) {
-        customColor = {bg: '#c62828', text: '#ffffff'}; // 1 available - dark red
-      } else if(availableCnt===2) {
-        customColor = {bg: '#ef5350', text: '#ffffff'}; // 2 available - light red
-      } else if(availableCnt===3) {
-        customColor = {bg: '#ff9800', text: '#ffffff'}; // 3 available - orange
-      } else if(availableCnt===4) {
-        customColor = {bg: '#ffeb3b', text: '#2b2b00'}; // 4 available - yellow
-      } else if(availableCnt===5) {
-        customColor = {bg: '#cddc39', text: '#2b2b00'}; // 5 available - yellowish green
-      } else if(availableCnt===6) {
-        customColor = {bg: '#9ccc65', text: '#1b5e20'}; // 6 available - light green
-      } else {
-        customColor = {bg: '#66bb6a', text: '#ffffff'}; // 7+ available - green
-      }
+      // Use configurable availability colors
+      customColor = CONFIG.availabilityColors[Math.min(availableCnt, 7)] || CONFIG.availabilityColors[7];
       cls = 'h0'; // Use as base class
     } else {
       // Normal view: show busy people (green->yellow->orange->red shades based on how many are busy)
@@ -385,7 +441,7 @@ function updateHeatmap(){// compute counts for selectedMembers
     c.innerHTML = html;
     c._names = arr.map(x=>x.name); c._notes = invertedView ? [] : arr.map(x=> x.note ? x.name+': '+x.note : '').filter(Boolean);
   });
-  document.getElementById('status').textContent = selectedMembers.size + ' members selected';
+  document.getElementById('status').textContent = selectedMembers.size > 0 ? selectedMembers.size + ' members selected' : CONFIG.ui.noMembersSelected;
 }
 
 function showTooltipForCell(e,cell){const t=document.getElementById('tooltip'); const names=cell._names||[]; const notes=cell._notes||[];
@@ -460,13 +516,13 @@ document.getElementById('deselectAllMembers').onclick = ()=>{ selectedMembers.cl
 
 document.getElementById('toggleWeekends').onclick = ()=>{ 
   const btn = document.getElementById('toggleWeekends');
-  if(days.length>5){ 
-    days=ALL_DAYS.slice(0,5); 
-    btn.textContent='Show Weekends';
+  if(days.length > CONFIG.defaultWorkDays){ 
+    days = ALL_DAYS.slice(0, CONFIG.defaultWorkDays); 
+    btn.textContent = CONFIG.ui.showWeekendsBtn;
     btn.classList.remove('active');
   } else { 
-    days=ALL_DAYS.slice(); 
-    btn.textContent='Hide Weekends';
+    days = ALL_DAYS.slice(); 
+    btn.textContent = CONFIG.ui.hideWeekendsBtn;
     btn.classList.add('active');
   } 
   save(); 
@@ -483,30 +539,30 @@ document.getElementById('invertView').onclick = ()=>{
   const extraText = document.getElementById('legendExtraText');
   
   if(invertedView) {
-    btn.textContent = 'Show Busy';
+    btn.textContent = CONFIG.ui.showBusyBtn;
     btn.classList.add('active');
-    // Update legend for availability view: black->dark red->light red->orange->yellow->yellowish green->light green->green
+    // Update legend for availability view using config colors
     document.getElementById('legendH0').textContent = '7+';
-    legendItems[0].style.background = '#66bb6a'; // Green
+    legendItems[0].style.background = CONFIG.availabilityColors[7].bg;
     document.getElementById('legendH1').textContent = '6';
-    legendItems[1].style.background = '#9ccc65'; // Light green
+    legendItems[1].style.background = CONFIG.availabilityColors[6].bg;
     document.getElementById('legendH2').textContent = '5';
-    legendItems[2].style.background = '#cddc39'; // Yellowish green
+    legendItems[2].style.background = CONFIG.availabilityColors[5].bg;
     document.getElementById('legendH3').textContent = '4';
-    legendItems[3].style.background = '#ffeb3b'; // Yellow
+    legendItems[3].style.background = CONFIG.availabilityColors[4].bg;
     document.getElementById('legendH4').textContent = '3';
-    legendItems[4].style.background = '#ff9800'; // Orange
+    legendItems[4].style.background = CONFIG.availabilityColors[3].bg;
     document.getElementById('legendH5').textContent = '2';
-    legendItems[5].style.background = '#ef5350'; // Light red
+    legendItems[5].style.background = CONFIG.availabilityColors[2].bg;
     document.getElementById('legendH6').textContent = '1';
-    legendItems[6].style.background = '#c62828'; // Dark red
+    legendItems[6].style.background = CONFIG.availabilityColors[1].bg;
     // Show extra legend item
     extraItem.style.display = 'flex';
-    extraSw.style.background = '#1a1a1a'; // Black
+    extraSw.style.background = CONFIG.availabilityColors[0].bg;
     extraText.textContent = '0';
-    document.getElementById('legendCaption').textContent = 'Available';
+    document.getElementById('legendCaption').textContent = CONFIG.ui.legendAvailableCaption;
   } else {
-    btn.textContent = 'Show Availability';
+    btn.textContent = CONFIG.ui.showAvailabilityBtn;
     btn.classList.remove('active');
     // Hide extra item
     extraItem.style.display = 'none';
@@ -525,7 +581,7 @@ document.getElementById('invertView').onclick = ()=>{
     legendItems[5].style.background = '';
     document.getElementById('legendH6').textContent = '6+';
     legendItems[6].style.background = '';
-    document.getElementById('legendCaption').textContent = 'Busy count';
+    document.getElementById('legendCaption').textContent = CONFIG.ui.legendBusyCaption;
   }
   updateHeatmap(); 
 }
@@ -583,8 +639,8 @@ document.getElementById('gapHourTarget').addEventListener('change',(e)=>{
 });
 
 // Export implementations
-function exportJSON(){const data={days,TIMES,members:members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes}))}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); download(blob,'schedules.json');}
-function exportCSV(){let rows=[]; members.forEach(m=>{Array.from(m.busy).forEach(k=>{const [d,t]=k.split('|'); const note = m.notes && m.notes[k] ? '"'+m.notes[k].replace(/"/g,'""')+'"' : ''; rows.push(['"'+m.name.replace(/"/g,'""')+'"',d,t,note]);});}); let csv='member,day,time,note\n'+rows.map(r=>r.join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); download(blob,'schedules.csv');}
+function exportJSON(){const data={days,TIMES,members:members.map(m=>({id:m.id,name:m.name,busy:Array.from(m.busy),notes:m.notes}))}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); download(blob,CONFIG.export.jsonFilename);}
+function exportCSV(){let rows=[]; members.forEach(m=>{Array.from(m.busy).forEach(k=>{const [d,t]=k.split('|'); const note = m.notes && m.notes[k] ? '"'+m.notes[k].replace(/"/g,'""')+'"' : ''; rows.push(['"'+m.name.replace(/"/g,'""')+'"',d,t,note]);});}); let csv='member,day,time,note\n'+rows.map(r=>r.join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); download(blob,CONFIG.export.csvFilename);}
 
 function exportPNG(){
   const mainEl = document.querySelector('.main');
@@ -592,7 +648,7 @@ function exportPNG(){
   
   // Get export title
   const titleInput = document.getElementById('exportTitle');
-  const exportTitle = titleInput && titleInput.value.trim() ? titleInput.value.trim() : 'Team Schedule Heatmap';
+  const exportTitle = titleInput && titleInput.value.trim() ? titleInput.value.trim() : CONFIG.export.defaultTitle;
   
   // Generate filename from title
   const filename = exportTitle.toLowerCase().replace(/\s+/g, '_') + '.png';
@@ -833,8 +889,8 @@ function exportPNG(){
   });
 }
 
-function exportStaticHTML(){const html = buildExportHTML({dynamic:false}); const blob=new Blob([html],{type:'text/html'}); download(blob,'schedules-static.html');}
-function exportDynamicHTML(){const html = buildExportHTML({dynamic:true}); const blob=new Blob([html],{type:'text/html'}); download(blob,'schedules-dynamic.html');}
+function exportStaticHTML(){const html = buildExportHTML({dynamic:false}); const blob=new Blob([html],{type:'text/html'}); download(blob,CONFIG.export.staticHtmlFilename);}
+function exportDynamicHTML(){const html = buildExportHTML({dynamic:true}); const blob=new Blob([html],{type:'text/html'}); download(blob,CONFIG.export.dynamicHtmlFilename);}
 
 function buildExportHTML(opts){const data = {days,TIMES,members:members.map(m=>({name:m.name,busy:Array.from(m.busy),notes:m.notes}))};
   const daysHtml = data.days.map(d=>`<th>${d}</th>`).join('');
@@ -845,9 +901,51 @@ function buildExportHTML(opts){const data = {days,TIMES,members:members.map(m=>(
 
 function download(blob,filename){const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);} 
 
+// Initialize UI elements with config values
+function initializeUI() {
+  // Set app title
+  document.getElementById('appTitle').textContent = CONFIG.appTitle;
+  
+  // Set slots info text
+  const firstTime = CONFIG.timeSlots[0];
+  const lastTime = CONFIG.timeSlots[CONFIG.timeSlots.length - 1];
+  document.getElementById('slotsInfo').textContent = `${firstTime}-${lastTime} ${CONFIG.ui.slotsInfo}`;
+  
+  // Set export title placeholder
+  document.getElementById('exportTitle').placeholder = CONFIG.export.defaultTitle;
+  
+  // Populate gap hour target dropdown
+  const gapHourSelect = document.getElementById('gapHourTarget');
+  gapHourSelect.innerHTML = '';
+  CONFIG.timeSlots.forEach(time => {
+    const option = document.createElement('option');
+    option.value = time;
+    option.textContent = time;
+    if (time === CONFIG.defaultDisplayOptions.gapHourTarget) {
+      option.selected = true;
+    }
+    gapHourSelect.appendChild(option);
+  });
+  
+  // Set initial button text
+  document.getElementById('toggleWeekends').textContent = CONFIG.ui.showWeekendsBtn;
+  document.getElementById('invertView').textContent = CONFIG.ui.showAvailabilityBtn;
+  
+  // Set legend caption
+  document.getElementById('legendCaption').textContent = CONFIG.ui.legendBusyCaption;
+  
+  // Set initial status
+  document.getElementById('status').textContent = CONFIG.ui.noMembersSelected;
+}
+
 // init
-load(); if(members.length===0){ addMember('Alice'); addMember('Bob'); addMember('Charlie'); }
-renderMembers(); renderTable();
+initializeUI();
+load(); 
+if(members.length === 0) { 
+  CONFIG.defaultMembers.forEach(name => addMember(name)); 
+}
+renderMembers(); 
+renderTable();
 </script>
 </body>
 </html>
