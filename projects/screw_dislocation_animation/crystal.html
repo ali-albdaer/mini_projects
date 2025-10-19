@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screw Dislocation Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            color: #fff;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            cursor: move;
+        }
+
+        .ui-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            font-size: 28px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            max-width: 320px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        .control-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .control-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        .control-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
+        button.active {
+            background: rgba(76, 175, 80, 0.7);
+            border-color: rgba(76, 175, 80, 0.9);
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .slider-row label {
+            min-width: 100px;
+            font-size: 12px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .value-display {
+            min-width: 45px;
+            text-align: right;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .checkbox-row label {
+            font-size: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="ui-container">
+        <div class="title">🔬 Screw Dislocation Simulation</div>
+        
+        <div class="control-panel">
+            <!-- Animation Controls -->
+            <div class="control-section">
+                <div class="section-title">Animation</div>
+                <div class="controls">
+                    <button id="applyShear">Apply Shear</button>
+                    <button id="reset">Reset</button>
+                    <button id="toggleAnimation">Pause</button>
+                </div>
+                <div class="slider-row">
+                    <label>Shear Force:</label>
+                    <input type="range" id="shearForce" min="0" max="100" value="50">
+                    <span class="value-display" id="shearForceValue">50</span>
+                </div>
+                <div class="slider-row">
+                    <label>Speed:</label>
+                    <input type="range" id="animSpeed" min="10" max="100" value="50">
+                    <span class="value-display" id="animSpeedValue">50</span>
+                </div>
+            </div>
+
+            <!-- View Controls -->
+            <div class="control-section">
+                <div class="section-title">View</div>
+                <div class="slider-row">
+                    <label>Rotation X:</label>
+                    <input type="range" id="rotationX" min="-180" max="180" value="20">
+                    <span class="value-display" id="rotationXValue">20°</span>
+                </div>
+                <div class="slider-row">
+                    <label>Rotation Y:</label>
+                    <input type="range" id="rotationY" min="-180" max="180" value="30">
+                    <span class="value-display" id="rotationYValue">30°</span>
+                </div>
+                <div class="slider-row">
+                    <label>Zoom:</label>
+                    <input type="range" id="zoom" min="400" max="1500" value="800">
+                    <span class="value-display" id="zoomValue">800</span>
+                </div>
+            </div>
+
+            <!-- Visual Settings -->
+            <div class="control-section">
+                <div class="section-title">Visual Settings</div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showHelix" checked>
+                    <label for="showHelix">Show Spiral Helix</label>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showSolid">
+                    <label for="showSolid">Show Solid Cubes</label>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showBonds" checked>
+                    <label for="showBonds">Show Bonds</label>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showAtoms" checked>
+                    <label for="showAtoms">Show Atoms</label>
+                </div>
+                <div class="slider-row">
+                    <label>Atom Size:</label>
+                    <input type="range" id="atomSize" min="1" max="10" value="4">
+                    <span class="value-display" id="atomSizeValue">4</span>
+                </div>
+                <div class="slider-row">
+                    <label>Bond Width:</label>
+                    <input type="range" id="bondWidth" min="1" max="5" value="1">
+                    <span class="value-display" id="bondWidthValue">1</span>
+                </div>
+            </div>
+
+            <!-- Lattice Settings -->
+            <div class="control-section">
+                <div class="section-title">Lattice Settings</div>
+                <div class="slider-row">
+                    <label>Lattice Size:</label>
+                    <input type="range" id="latticeSize" min="6" max="16" value="12">
+                    <span class="value-display" id="latticeSizeValue">12</span>
+                </div>
+                <div class="slider-row">
+                    <label>Spacing:</label>
+                    <input type="range" id="spacing" min="20" max="60" value="40">
+                    <span class="value-display" id="spacingValue">40</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas to full screen
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Lattice parameters
+        let latticeSize = 12;
+        let spacing = 40;
+        let atomRadius = 4;
+        let bondWidth = 1;
+        
+        // Animation state
+        let shearProgress = 0;
+        let dislocationPosition = 0;
+        let isAnimating = false;
+        let animationPaused = false;
+        let shearForceValue = 50;
+        let animSpeed = 50;
+        let rotationX = 20;
+        let rotationY = 30;
+        
+        // Visual toggles
+        let showHelix = true;
+        let showSolid = false; // Start with solid cubes OFF for better performance
+        let showBonds = true;
+        let showAtoms = true;
+
+        // Camera and interaction
+        let cameraDistance = 800;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        class Atom {
+            constructor(x, y, z, originalX, originalY, originalZ) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.originalX = originalX;
+                this.originalY = originalY;
+                this.originalZ = originalZ;
+                this.displaced = false;
+            }
+        }
+
+        let atoms = [];
+        let bonds = [];
+
+        // Initialize lattice
+        function initLattice() {
+            atoms = [];
+            bonds = [];
+            
+            const offset = -((latticeSize - 1) * spacing) / 2;
+            
+            for (let i = 0; i < latticeSize; i++) {
+                for (let j = 0; j < latticeSize; j++) {
+                    for (let k = 0; k < latticeSize; k++) {
+                        const x = i * spacing + offset;
+                        const y = j * spacing + offset;
+                        const z = k * spacing + offset;
+                        atoms.push(new Atom(x, y, z, x, y, z));
+                    }
+                }
+            }
+
+            // Create bonds
+            atoms.forEach((atom, idx) => {
+                atoms.forEach((other, otherIdx) => {
+                    if (idx < otherIdx) {
+                        const dx = atom.originalX - other.originalX;
+                        const dy = atom.originalY - other.originalY;
+                        const dz = atom.originalZ - other.originalZ;
+                        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        
+                        if (dist < spacing * 1.1) {
+                            bonds.push([idx, otherIdx]);
+                        }
+                    }
+                });
+            });
+        }
+
+        // Apply screw dislocation
+        function applyScrewDislocation(progress) {
+            const burgers = spacing; // Burgers vector magnitude (one lattice spacing)
+            const maxDisplacement = (shearForceValue / 50) * burgers;
+            const coreRadius = spacing * 0.5; // Dislocation core radius
+            
+            atoms.forEach(atom => {
+                const x = atom.originalX;
+                const y = atom.originalY;
+                const z = atom.originalZ;
+                
+                // Calculate distance from dislocation line (along z-axis at center)
+                const r = Math.sqrt(x * x + y * y);
+                
+                // Atoms at the exact center don't move
+                if (r < spacing * 0.3) {
+                    atom.x = x;
+                    atom.y = y;
+                    atom.z = z;
+                    atom.displaced = false;
+                    return;
+                }
+                
+                // Calculate angle around dislocation line (-π to π)
+                const theta = Math.atan2(y, x);
+                
+                // SCREW DISLOCATION: Displacement is PARALLEL to dislocation line (z-direction)
+                // and proportional to the angle around the line
+                // This creates the helical/spiral structure where each 360° around 
+                // corresponds to one Burgers vector displacement
+                
+                // The key formula: u_z = (b / 2π) * θ
+                // where b is the Burgers vector, θ is angle around dislocation
+                const baseDisplacement = (theta / (2 * Math.PI)) * burgers;
+                
+                // Apply smooth decay function with distance from core
+                // Use a more gradual decay to show the long-range strain field
+                const decayFactor = coreRadius / (r + coreRadius);
+                
+                // Smooth animation progress (ease in-out)
+                const smoothProgress = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                // Apply the displacement (this is the screw dislocation!)
+                const totalDisplacement = baseDisplacement * smoothProgress * decayFactor;
+                atom.z = z + totalDisplacement * maxDisplacement;
+                
+                // Atoms maintain their x,y positions (no radial movement in pure screw)
+                // Only slight elastic distortion
+                const elasticStrain = 0.02 * totalDisplacement * decayFactor;
+                atom.x = x * (1 + elasticStrain);
+                atom.y = y * (1 + elasticStrain);
+                
+                atom.displaced = Math.abs(totalDisplacement) > 0.01;
+            });
+        }
+
+        // 3D rotation
+        function rotate3D(x, y, z, angleX, angleY) {
+            const radX = angleX * Math.PI / 180;
+            const radY = angleY * Math.PI / 180;
+            
+            // Rotate around X axis
+            let y1 = y * Math.cos(radX) - z * Math.sin(radX);
+            let z1 = y * Math.sin(radX) + z * Math.cos(radX);
+            
+            // Rotate around Y axis
+            let x2 = x * Math.cos(radY) + z1 * Math.sin(radY);
+            let z2 = -x * Math.sin(radY) + z1 * Math.cos(radY);
+            
+            return { x: x2, y: y1, z: z2 };
+        }
+
+        // Project 3D to 2D
+        function project(x, y, z) {
+            const rotated = rotate3D(x, y, z, rotationX, rotationY);
+            const scale = cameraDistance / (cameraDistance + rotated.z);
+            return {
+                x: canvas.width / 2 + rotated.x * scale,
+                y: canvas.height / 2 + rotated.y * scale,
+                z: rotated.z,
+                scale: scale
+            };
+        }
+
+        // Draw cubic/solid structure (optimized)
+        function drawSolidStructure() {
+            if (!showSolid) return;
+            
+            ctx.save();
+            
+            // Only draw a subset of cubes for performance
+            const step = latticeSize > 10 ? 2 : 1; // Skip every other cube for large lattices
+            const cubes = [];
+            
+            for (let i = 0; i < latticeSize - 1; i += step) {
+                for (let j = 0; j < latticeSize - 1; j += step) {
+                    for (let k = 0; k < latticeSize - 1; k += step) {
+                        const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx100 = (i+step) * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx010 = i * latticeSize * latticeSize + (j+step) * latticeSize + k;
+                        const idx110 = (i+step) * latticeSize * latticeSize + (j+step) * latticeSize + k;
+                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+step);
+                        const idx101 = (i+step) * latticeSize * latticeSize + j * latticeSize + (k+step);
+                        const idx011 = i * latticeSize * latticeSize + (j+step) * latticeSize + (k+step);
+                        const idx111 = (i+step) * latticeSize * latticeSize + (j+step) * latticeSize + (k+step);
+                        
+                        if (idx111 < atoms.length) {
+                            const corners = [
+                                atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
+                                atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
+                            ];
+                            
+                            // Calculate center for depth sorting
+                            let centerZ = 0, centerX = 0, centerY = 0;
+                            for (let ci = 0; ci < 8; ci++) {
+                                centerZ += corners[ci].z;
+                                centerX += corners[ci].x;
+                                centerY += corners[ci].y;
+                            }
+                            centerZ /= 8; centerX /= 8; centerY /= 8;
+                            
+                            const displaced = corners.some(atom => atom.displaced);
+                            
+                            cubes.push({ corners, centerZ, displaced });
+                        }
+                    }
+                }
+            }
+            
+            // Sort cubes by depth
+            cubes.sort((a, b) => a.centerZ - b.centerZ);
+            
+            // Draw each cube's visible faces only
+            cubes.forEach(cube => {
+                const c = cube.corners;
+                
+                // Define the 6 faces of the cube (only visible ones will be drawn)
+                const faces = [
+                    { verts: [c[0], c[1], c[3], c[2]], normal: [0, 0, -1] }, // front
+                    { verts: [c[4], c[5], c[7], c[6]], normal: [0, 0, 1] },  // back
+                    { verts: [c[0], c[1], c[5], c[4]], normal: [0, -1, 0] }, // bottom
+                    { verts: [c[2], c[3], c[7], c[6]], normal: [0, 1, 0] },  // top
+                    { verts: [c[0], c[2], c[6], c[4]], normal: [-1, 0, 0] }, // left
+                    { verts: [c[1], c[3], c[7], c[5]], normal: [1, 0, 0] }   // right
+                ];
+                
+                // Color based on displacement
+                const baseColor = cube.displaced ? [255, 100, 100] : [100, 150, 255];
+                
+                faces.forEach((face, faceIdx) => {
+                    const projected = face.verts.map(atom => project(atom.x, atom.y, atom.z));
+                    
+                    // Back-face culling
+                    const p0 = projected[0], p1 = projected[1], p2 = projected[2];
+                    const cross = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+                    if (cross < 0) return; // Don't draw back-facing faces
+                    
+                    const avgZ = (projected[0].z + projected[1].z + projected[2].z + projected[3].z) / 4;
+                    const opacity = Math.max(0.05, 0.7 - (avgZ + 400) / 1000);
+                    
+                    // Vary brightness by face for 3D effect
+                    const brightness = 0.6 + (faceIdx * 0.08);
+                    const r = Math.floor(baseColor[0] * brightness);
+                    const g = Math.floor(baseColor[1] * brightness);
+                    const b = Math.floor(baseColor[2] * brightness);
+                    
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity * 0.4})`;
+                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity * 0.7})`;
+                    ctx.lineWidth = 0.5;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(projected[0].x, projected[0].y);
+                    ctx.lineTo(projected[1].x, projected[1].y);
+                    ctx.lineTo(projected[2].x, projected[2].y);
+                    ctx.lineTo(projected[3].x, projected[3].y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            });
+            
+            ctx.restore();
+        }
+
+        // Draw helical path and ramp surface (optimized)
+        function drawHelicalPath(progress) {
+            if (progress < 0.1) return;
+            
+            ctx.save();
+            
+            const numTurns = 2.5;
+            const pointsPerTurn = 40; // Reduced from 60 for better performance
+            const totalPoints = numTurns * pointsPerTurn;
+            const innerRadius = spacing * 1.5;
+            const outerRadius = spacing * 3;
+            const height = spacing * (latticeSize - 1);
+            const centerOffset = -height / 2;
+            
+            const helixPoints = [];
+            
+            // Generate helix points on outer edge
+            for (let i = 0; i <= totalPoints * progress; i++) {
+                const t = i / pointsPerTurn;
+                const angle = t * 2 * Math.PI;
+                const x = outerRadius * Math.cos(angle);
+                const y = outerRadius * Math.sin(angle);
+                const z = (t / numTurns) * height + centerOffset;
+                
+                helixPoints.push({ x, y, z, angle, t });
+            }
+            
+            // Draw the ramp surface connecting inner and outer helix (simplified)
+            if (helixPoints.length > 5) {
+                ctx.fillStyle = 'rgba(255, 215, 0, 0.12)';
+                ctx.strokeStyle = 'rgba(255, 215, 0, 0.25)';
+                ctx.lineWidth = 1;
+                
+                // Draw fewer surface quads for performance
+                for (let i = 0; i < helixPoints.length - 1; i += 5) {
+                    const p1 = helixPoints[i];
+                    const p2 = helixPoints[Math.min(i + 5, helixPoints.length - 1)];
+                    
+                    // Create quad from inner to outer radius
+                    const innerX1 = innerRadius * Math.cos(p1.angle);
+                    const innerY1 = innerRadius * Math.sin(p1.angle);
+                    const innerX2 = innerRadius * Math.cos(p2.angle);
+                    const innerY2 = innerRadius * Math.sin(p2.angle);
+                    
+                    const proj1 = project(innerX1, innerY1, p1.z);
+                    const proj2 = project(p1.x, p1.y, p1.z);
+                    const proj3 = project(p2.x, p2.y, p2.z);
+                    const proj4 = project(innerX2, innerY2, p2.z);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(proj1.x, proj1.y);
+                    ctx.lineTo(proj2.x, proj2.y);
+                    ctx.lineTo(proj3.x, proj3.y);
+                    ctx.lineTo(proj4.x, proj4.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw the outer helix edge (bright)
+            const projectedHelix = helixPoints.map(p => project(p.x, p.y, p.z));
+            
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+            ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
+            ctx.shadowBlur = 20;
+            
+            ctx.beginPath();
+            if (projectedHelix.length > 0) {
+                ctx.moveTo(projectedHelix[0].x, projectedHelix[0].y);
+                for (let i = 1; i < projectedHelix.length; i++) {
+                    ctx.lineTo(projectedHelix[i].x, projectedHelix[i].y);
+                }
+            }
+            ctx.stroke();
+            
+            // Draw inner helix edge
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(255, 180, 0, 0.7)';
+            ctx.shadowBlur = 10;
+            
+            ctx.beginPath();
+            helixPoints.forEach((p, i) => {
+                const innerX = innerRadius * Math.cos(p.angle);
+                const innerY = innerRadius * Math.sin(p.angle);
+                const proj = project(innerX, innerY, p.z);
+                
+                if (i === 0) {
+                    ctx.moveTo(proj.x, proj.y);
+                } else {
+                    ctx.lineTo(proj.x, proj.y);
+                }
+            });
+            ctx.stroke();
+            
+            // Draw glowing markers along helix (reduced frequency)
+            ctx.shadowBlur = 8;
+            projectedHelix.forEach((p, i) => {
+                if (i % 10 === 0) { // Less frequent markers
+                    const size = 4 * p.scale;
+                    
+                    // Single bright point (removed outer glow for performance)
+                    ctx.fillStyle = 'rgba(255, 255, 150, 0.9)';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // Draw dislocation line (central axis) with labels
+            const topPoint = project(0, 0, centerOffset);
+            const bottomPoint = project(0, 0, centerOffset + height);
+            
+            ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([12, 6]);
+            ctx.shadowColor = 'rgba(255, 50, 50, 0.6)';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(topPoint.x, topPoint.y);
+            ctx.lineTo(bottomPoint.x, bottomPoint.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Draw arrows showing displacement direction
+            if (progress > 0.3) {
+                ctx.shadowBlur = 0;
+                const arrowZ = centerOffset + height * 0.5;
+                const arrowRadius = outerRadius * 1.2;
+                
+                for (let i = 0; i < 4; i++) {
+                    const angle = i * Math.PI / 2;
+                    const x = arrowRadius * Math.cos(angle);
+                    const y = arrowRadius * Math.sin(angle);
+                    const p1 = project(x, y, arrowZ - spacing);
+                    const p2 = project(x, y, arrowZ + spacing);
+                    
+                    drawArrow(p1.x, p1.y, p2.x, p2.y, 'rgba(100, 255, 100, 0.6)', 2);
+                }
+            }
+            
+            // Labels
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Burgers Vector ⟂', topPoint.x, topPoint.y - 25);
+            ctx.fillText('(Dislocation Line)', topPoint.x, topPoint.y - 10);
+            
+            // Add "spiral ramp" label
+            if (progress > 0.5 && helixPoints.length > 0) {
+                const midPoint = helixPoints[Math.floor(helixPoints.length / 2)];
+                const labelProj = project(midPoint.x * 1.3, midPoint.y * 1.3, midPoint.z);
+                ctx.fillStyle = 'rgba(255, 215, 0, 1)';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText('Spiral Ramp', labelProj.x, labelProj.y);
+            }
+            
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // Draw shear force arrows
+        function drawShearForces(progress) {
+            if (progress < 0.1) return;
+            
+            ctx.save();
+            ctx.globalAlpha = Math.min(progress * 2, 0.7);
+            
+            const arrowLength = 80;
+            const arrowSpacing = 100;
+            const offsetY = -200;
+            
+            for (let i = 0; i < 3; i++) {
+                const x1 = canvas.width / 2 - 150 + i * arrowSpacing;
+                const y1 = canvas.height / 2 + offsetY;
+                
+                // Top arrows (pointing right)
+                drawArrow(x1, y1, x1 + arrowLength, y1, '#ff6b6b', 3);
+                
+                // Bottom arrows (pointing left)
+                const y2 = canvas.height / 2 - offsetY;
+                drawArrow(x1 + arrowLength, y2, x1, y2, '#4ecdc4', 3);
+            }
+            
+            ctx.restore();
+        }
+
+        function drawArrow(x1, y1, x2, y2, color, width) {
+            const headlen = 15;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), 
+                       y2 - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), 
+                       y2 - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Render scene
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw shear force arrows
+            drawShearForces(shearProgress);
+            
+            // Draw solid structure (cubes) - this is expensive, so optimize
+            drawSolidStructure();
+            
+            // Draw helical path if enabled
+            if (showHelix) {
+                drawHelicalPath(shearProgress);
+            }
+            
+            // Only draw bonds and atoms if needed
+            if (showBonds || showAtoms) {
+                // Project all atoms once
+                const projected = atoms.map(atom => {
+                    const p = project(atom.x, atom.y, atom.z);
+                    return { ...p, atom };
+                });
+                
+                // Sort by depth for proper rendering
+                projected.sort((a, b) => a.z - b.z);
+                
+                // Draw bonds
+                if (showBonds) {
+                    ctx.lineWidth = bondWidth;
+                    
+                    // Batch drawing by color to reduce state changes
+                    const normalBonds = [];
+                    const displacedBonds = [];
+                    
+                    bonds.forEach(([idx1, idx2]) => {
+                        const displaced = atoms[idx1].displaced || atoms[idx2].displaced;
+                        const bondData = [idx1, idx2];
+                        
+                        if (displaced) {
+                            displacedBonds.push(bondData);
+                        } else {
+                            normalBonds.push(bondData);
+                        }
+                    });
+                    
+                    // Draw normal bonds
+                    normalBonds.forEach(([idx1, idx2]) => {
+                        const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
+                        const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
+                        const avgZ = (p1.z + p2.z) / 2;
+                        const opacity = Math.max(0.1, 1 - (avgZ + 400) / 800);
+                        
+                        ctx.strokeStyle = `rgba(100, 150, 255, ${opacity * 0.3})`;
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    });
+                    
+                    // Draw displaced bonds
+                    displacedBonds.forEach(([idx1, idx2]) => {
+                        const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
+                        const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
+                        const avgZ = (p1.z + p2.z) / 2;
+                        const opacity = Math.max(0.1, 1 - (avgZ + 400) / 800);
+                        
+                        ctx.strokeStyle = `rgba(255, 100, 100, ${opacity * 0.6})`;
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    });
+                }
+                
+                // Draw atoms
+                if (showAtoms) {
+                    projected.forEach(({ x, y, z, scale, atom }) => {
+                        const opacity = Math.max(0.2, 1 - (z + 400) / 800);
+                        const size = atomRadius * scale;
+                        
+                        // Color based on displacement
+                        if (atom.displaced) {
+                            const intensity = Math.min(255, 150 + Math.abs(atom.z - atom.originalZ) * 2);
+                            ctx.fillStyle = `rgba(${intensity}, 100, 100, ${opacity})`;
+                        } else {
+                            ctx.fillStyle = `rgba(100, 150, 255, ${opacity})`;
+                        }
+                        
+                        ctx.beginPath();
+                        ctx.arc(x, y, size, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Highlight effect
+                        if (size > 2) {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
+                            ctx.beginPath();
+                            ctx.arc(x - size * 0.3, y - size * 0.3, size * 0.4, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    });
+                }
+            }
+        }
+
+        // Animation loop
+        function animate() {
+            if (isAnimating && !animationPaused) {
+                shearProgress += 0.01 * (animSpeed / 50);
+                
+                if (shearProgress >= 1) {
+                    shearProgress = 1;
+                    isAnimating = false;
+                }
+                
+                applyScrewDislocation(shearProgress);
+            }
+            
+            render();
+            requestAnimationFrame(animate);
+        }
+
+        // Event listeners
+        document.getElementById('applyShear').addEventListener('click', () => {
+            isAnimating = true;
+            animationPaused = false;
+            shearProgress = 0;
+            document.getElementById('toggleAnimation').textContent = 'Pause';
+        });
+
+        document.getElementById('reset').addEventListener('click', () => {
+            initLattice();
+            shearProgress = 0;
+            isAnimating = false;
+            animationPaused = false;
+            document.getElementById('toggleAnimation').textContent = 'Pause';
+        });
+
+        document.getElementById('toggleAnimation').addEventListener('click', (e) => {
+            animationPaused = !animationPaused;
+            e.target.textContent = animationPaused ? 'Resume' : 'Pause';
+        });
+
+        // Checkboxes
+        document.getElementById('showHelix').addEventListener('change', (e) => {
+            showHelix = e.target.checked;
+        });
+
+        document.getElementById('showSolid').addEventListener('change', (e) => {
+            showSolid = e.target.checked;
+        });
+
+        document.getElementById('showBonds').addEventListener('change', (e) => {
+            showBonds = e.target.checked;
+        });
+
+        document.getElementById('showAtoms').addEventListener('change', (e) => {
+            showAtoms = e.target.checked;
+        });
+
+        // Sliders
+        document.getElementById('shearForce').addEventListener('input', (e) => {
+            shearForceValue = parseInt(e.target.value);
+            document.getElementById('shearForceValue').textContent = shearForceValue;
+            if (shearProgress > 0) {
+                applyScrewDislocation(shearProgress);
+            }
+        });
+
+        document.getElementById('animSpeed').addEventListener('input', (e) => {
+            animSpeed = parseInt(e.target.value);
+            document.getElementById('animSpeedValue').textContent = animSpeed;
+        });
+
+        document.getElementById('rotationX').addEventListener('input', (e) => {
+            rotationX = parseInt(e.target.value);
+            document.getElementById('rotationXValue').textContent = rotationX + '°';
+        });
+
+        document.getElementById('rotationY').addEventListener('input', (e) => {
+            rotationY = parseInt(e.target.value);
+            document.getElementById('rotationYValue').textContent = rotationY + '°';
+        });
+
+        document.getElementById('zoom').addEventListener('input', (e) => {
+            cameraDistance = parseInt(e.target.value);
+            document.getElementById('zoomValue').textContent = cameraDistance;
+        });
+
+        document.getElementById('atomSize').addEventListener('input', (e) => {
+            atomRadius = parseInt(e.target.value);
+            document.getElementById('atomSizeValue').textContent = atomRadius;
+        });
+
+        document.getElementById('bondWidth').addEventListener('input', (e) => {
+            bondWidth = parseInt(e.target.value);
+            document.getElementById('bondWidthValue').textContent = bondWidth;
+        });
+
+        document.getElementById('latticeSize').addEventListener('input', (e) => {
+            latticeSize = parseInt(e.target.value);
+            document.getElementById('latticeSizeValue').textContent = latticeSize;
+            initLattice();
+            shearProgress = 0;
+            isAnimating = false;
+        });
+
+        document.getElementById('spacing').addEventListener('input', (e) => {
+            spacing = parseInt(e.target.value);
+            document.getElementById('spacingValue').textContent = spacing;
+            initLattice();
+            shearProgress = 0;
+            isAnimating = false;
+        });
+
+        // Mouse interaction for rotation
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                rotationY += deltaX * 0.5;
+                rotationX += deltaY * 0.5;
+                
+                // Update slider values
+                document.getElementById('rotationX').value = rotationX;
+                document.getElementById('rotationY').value = rotationY;
+                document.getElementById('rotationXValue').textContent = Math.round(rotationX) + '°';
+                document.getElementById('rotationYValue').textContent = Math.round(rotationY) + '°';
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        // Mouse wheel for zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            cameraDistance += e.deltaY * 0.5;
+            cameraDistance = Math.max(400, Math.min(1500, cameraDistance));
+        });
+
+        // Initialize and start
+        initLattice();
+        animate();
+    </script>
+</body>
+</html>
