@@ -246,6 +246,10 @@ References:
                     <input type="checkbox" id="fillCubes" checked>
                     <label for="fillCubes">Fill Cubes</label>
                 </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showShearVectors" checked>
+                    <label for="showShearVectors">Show Shear Vectors</label>
+                </div>
                 <div class="slider-row">
                     <label>Atom Size:</label>
                     <input type="range" id="atomSize" min="1" max="10" value="4">
@@ -302,6 +306,7 @@ References:
         let showBonds = true;
         let showAtoms = true;
         let fillCubes = true;
+        let showShearVectors = true;
 
         let cameraDistance = 800;
         let isDragging = false;
@@ -755,11 +760,93 @@ References:
             ctx.fill();
         }
 
+        function drawShearVectors(progress) {
+            if (progress < 0.05) return;
+            
+            ctx.save();
+            
+            const offset = -((latticeSize - 1) * spacing) / 2;
+            const extent = ((latticeSize - 1) * spacing) / 2;
+            
+            // Shear magnitude based on force and progress
+            const baseShearMagnitude = (shearForceValue / 150) * spacing * 0.8;
+            const shearMagnitude = baseShearMagnitude * progress;
+            
+            // Number of vectors to draw on each face
+            const vectorGridSize = 4;
+            const step = (2 * extent) / (vectorGridSize + 1);
+            
+            // Color for shear vectors
+            const vectorColor = 'rgba(0, 255, 100, 0.85)';
+            const vectorWidth = 3;
+            const arrowHeadSize = 12;
+            
+            // Draw shear vectors on top face (y = extent) - shear in +Z direction
+            // Only show on closer half (negative X)
+            const topY = extent;
+            for (let i = 0; i < vectorGridSize; i++) {
+                for (let j = 0; j < vectorGridSize; j++) {
+                    const x = offset + step * (i + 1);
+                    const z = offset + step * (j + 1);
+                    
+                    // Only draw vectors on the left half (x < 0)
+                    if (x < 0) {
+                        // Vector start point (on top face)
+                        const startProj = project(x, topY, z);
+                        
+                        // Vector end point (shear in +Z direction, parallel to top face)
+                        const endProj = project(x, topY, z + shearMagnitude);
+                        
+                        // Draw arrow
+                        drawArrow(startProj.x, startProj.y, endProj.x, endProj.y, vectorColor, vectorWidth);
+                    }
+                }
+            }
+            
+            // Draw shear vectors on bottom face (y = -extent) - shear in -Z direction
+            // Only show on closer half (negative X)
+            const bottomY = -extent;
+            for (let i = 0; i < vectorGridSize; i++) {
+                for (let j = 0; j < vectorGridSize; j++) {
+                    const x = offset + step * (i + 1);
+                    const z = offset + step * (j + 1);
+                    
+                    // Only draw vectors on the left half (x < 0)
+                    if (x < 0) {
+                        // Vector start point (on bottom face)
+                        const startProj = project(x, bottomY, z);
+                        
+                        // Vector end point (shear in -Z direction, parallel to bottom face)
+                        const endProj = project(x, bottomY, z - shearMagnitude);
+                        
+                        // Draw arrow
+                        drawArrow(startProj.x, startProj.y, endProj.x, endProj.y, vectorColor, vectorWidth);
+                    }
+                }
+            }
+            
+            // Draw labels
+            ctx.fillStyle = 'rgba(0, 255, 100, 1)';
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 1;
+            
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             if (fillCubes) {
                 drawSimpleCubes();
+                // Draw shear vectors on top of the cubes
+                if (shearProgress > 0 && showShearVectors) {
+                    drawShearVectors(shearProgress);
+                }
                 return;
             }
             
@@ -864,6 +951,10 @@ References:
 
         document.getElementById('fillCubes').addEventListener('change', (e) => {
             fillCubes = e.target.checked;
+        });
+
+        document.getElementById('showShearVectors').addEventListener('change', (e) => {
+            showShearVectors = e.target.checked;
         });
 
         document.getElementById('shearForce').addEventListener('input', (e) => {
