@@ -235,6 +235,10 @@
                     <input type="checkbox" id="showAtoms" checked>
                     <label for="showAtoms">Show Atoms</label>
                 </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="fillCubes">
+                    <label for="fillCubes">Fill Cubes</label>
+                </div>
                 <div class="slider-row">
                     <label>Atom Size:</label>
                     <input type="range" id="atomSize" min="1" max="10" value="4">
@@ -294,10 +298,9 @@
         let rotationY = -39;
         
         // Visual toggles
-    // ...existing code...
         let showBonds = true;
         let showAtoms = true;
-    // ...existing code...
+        let fillCubes = false;
 
         // Camera and interaction
         let cameraDistance = 800;
@@ -511,6 +514,16 @@
                                 // Calculate average Z depth for this face
                                 const avgZ = face.indices.reduce((sum, idx) => sum + p[idx].z, 0) / face.indices.length;
                                 
+                                // Determine if this is an outer boundary face
+                                const faceAtoms = face.indices.map(idx => corners[idx]);
+                                const isOuterFace = 
+                                    (face.name === 'left' && i === 0) ||
+                                    (face.name === 'right' && i === latticeSize - 2) ||
+                                    (face.name === 'bottom' && j === 0) ||
+                                    (face.name === 'top' && j === latticeSize - 2) ||
+                                    (face.name === 'front' && k === 0) ||
+                                    (face.name === 'back' && k === latticeSize - 2);
+                                
                                 // Calculate face normal in screen space to determine visibility
                                 const p0 = p[face.indices[0]];
                                 const p1 = p[face.indices[1]];
@@ -524,20 +537,15 @@
                                 const crossZ = v1x * v2y - v1y * v2x;
                                 
                                 // Only draw faces facing the camera (negative cross product in screen space)
-                                if (crossZ < 0) {
-                                        // Skip faces if all four atoms are displaced too much (departed)
-                                        const displacementThreshold = spacing * 0.7; // tune as needed
-                                        const faceAtoms = face.indices.map(idx => corners[idx]);
-                                        const allDeparted = faceAtoms.every(atom => Math.abs(atom.z - atom.originalZ) > displacementThreshold);
-                                        if (!allDeparted) {
-                                            facesToDraw.push({
-                                                points: face.indices.map(idx => p[idx]),
-                                                depth: avgZ,
-                                                color: baseColor,
-                                                fillOpacity,
-                                                strokeOpacity
-                                            });
-                                        }
+                                // Always draw outer boundary faces
+                                if (crossZ < 0 || isOuterFace) {
+                                    facesToDraw.push({
+                                        points: face.indices.map(idx => p[idx]),
+                                        depth: avgZ,
+                                        color: baseColor,
+                                        fillOpacity,
+                                        strokeOpacity
+                                    });
                                 }
                             });
                         }
@@ -760,10 +768,11 @@
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // If cube mode is enabled, only draw simple cubes
-            // ...existing code...
-            
-            // ...existing code...
+            // If fill cubes mode is enabled, draw filled cubes
+            if (fillCubes) {
+                drawSimpleCubes();
+                return; // Skip drawing atoms and bonds
+            }
             
             // Only draw bonds and atoms if needed
             if (showBonds || showAtoms) {
@@ -869,16 +878,16 @@
         });
 
         // Checkboxes
-        // ...existing code...
-
-        // ...existing code...
-
         document.getElementById('showBonds').addEventListener('change', (e) => {
             showBonds = e.target.checked;
         });
 
         document.getElementById('showAtoms').addEventListener('change', (e) => {
             showAtoms = e.target.checked;
+        });
+
+        document.getElementById('fillCubes').addEventListener('change', (e) => {
+            fillCubes = e.target.checked;
         });
 
         // Sliders
