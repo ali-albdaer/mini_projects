@@ -580,7 +580,7 @@ References:
                 ctx.lineWidth = 1.5;
                 ctx.strokeStyle = `rgba(50,50,50,${face.strokeOpacity})`;
                 ctx.fillStyle = `rgba(${face.color[0]},${face.color[1]},${face.color[2]},${face.fillOpacity})`;
-                
+
                 ctx.beginPath();
                 ctx.moveTo(face.points[0].x, face.points[0].y);
                 for (let i = 1; i < face.points.length; i++) {
@@ -609,7 +609,6 @@ References:
             const topPoint = project(0, 0, extendedOffset);
             const bottomPoint = project(0, 0, extendedOffset + extendedHeight);
             
-            // Draw dislocation line (vertical green line)
             ctx.strokeStyle = 'rgba(0, 255, 100, 0.9)';
             ctx.lineWidth = 5;
             ctx.setLineDash([12, 6]);
@@ -621,7 +620,6 @@ References:
             ctx.stroke();
             ctx.setLineDash([]);
             
-            // Draw label
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.font = 'bold 13px Arial';
@@ -662,64 +660,48 @@ References:
             const offset = -((latticeSize - 1) * spacing) / 2;
             const extent = ((latticeSize - 1) * spacing) / 2;
             
-            // Shear magnitude based on force and progress
             const baseShearMagnitude = (shearForceValue / 150) * spacing * 0.8;
             const shearMagnitude = baseShearMagnitude * progress;
             
-            // Number of vectors to draw on each face
             const vectorGridSize = 4;
             const step = (2 * extent) / (vectorGridSize + 1);
             
-            // Color for shear vectors
             const vectorColor = 'rgba(0, 255, 100, 0.85)';
             const vectorWidth = 3;
             const arrowHeadSize = 12;
             
-            // Draw shear vectors on top face (y = extent) - shear in +Z direction
-            // Only show on closer half (negative X)
             const topY = extent;
             for (let i = 0; i < vectorGridSize; i++) {
                 for (let j = 0; j < vectorGridSize; j++) {
                     const x = offset + step * (i + 1);
                     const z = offset + step * (j + 1);
                     
-                    // Only draw vectors on the left half (x < 0)
                     if (x < 0) {
-                        // Vector start point (on top face)
                         const startProj = project(x, topY, z);
                         
-                        // Vector end point (shear in +Z direction, parallel to top face)
                         const endProj = project(x, topY, z + shearMagnitude);
                         
-                        // Draw arrow
                         drawArrow(startProj.x, startProj.y, endProj.x, endProj.y, vectorColor, vectorWidth);
                     }
                 }
             }
             
-            // Draw shear vectors on bottom face (y = -extent) - shear in -Z direction
-            // Only show on closer half (negative X)
             const bottomY = -extent;
             for (let i = 0; i < vectorGridSize; i++) {
                 for (let j = 0; j < vectorGridSize; j++) {
                     const x = offset + step * (i + 1);
                     const z = offset + step * (j + 1);
                     
-                    // Only draw vectors on the left half (x < 0)
                     if (x < 0) {
-                        // Vector start point (on bottom face)
                         const startProj = project(x, bottomY, z);
                         
-                        // Vector end point (shear in -Z direction, parallel to bottom face)
                         const endProj = project(x, bottomY, z - shearMagnitude);
                         
-                        // Draw arrow
                         drawArrow(startProj.x, startProj.y, endProj.x, endProj.y, vectorColor, vectorWidth);
                     }
                 }
             }
             
-            // Draw labels
             ctx.fillStyle = 'rgba(0, 255, 100, 1)';
             ctx.font = 'bold 13px Arial';
             ctx.textAlign = 'center';
@@ -739,11 +721,9 @@ References:
             
             if (!shouldShowWireframe) {
                 drawSimpleCubes();
-                // Draw shear vectors on top of the cubes
                 if (shearProgress > 0 && showShearVectors) {
                     drawShearVectors(shearProgress);
                 }
-                // Draw Burgers vector on top
                 if (shearProgress > 0 && showBurgersVector) {
                     drawHelicalPath(shearProgress);
                 }
@@ -800,7 +780,6 @@ References:
                     });
                 }
                 
-                // Draw Burgers vector on top
                 if (shearProgress > 0 && showBurgersVector) {
                     drawHelicalPath(shearProgress);
                 }
@@ -838,7 +817,6 @@ References:
 
         document.getElementById('wireFrameMode').addEventListener('change', (e) => {
             wireFrameMode = e.target.checked;
-            // Show atom size and bond width sliders only when wireframe mode is ON
             const atomSizeRow = document.getElementById('atomSizeRow');
             const bondWidthRow = document.getElementById('bondWidthRow');
             const showAtomsRow = document.getElementById('showAtomsRow');
