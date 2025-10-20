@@ -844,39 +844,19 @@
                 // Draw bonds
                 if (showBonds) {
                     ctx.lineWidth = bondWidth + 1.2; // Make bonds more visible
-                    // Only draw bonds if at least one atom is on the outer surface
+                    // Draw all bonds for full lattice connectivity
                     bonds.forEach(([idx1, idx2]) => {
                         const a1 = atoms[idx1];
                         const a2 = atoms[idx2];
-                        // Only draw if either atom is on the outer surface
-                        if (
-                            a1.x === a1.originalX && (
-                                a1.originalX === atoms[0].originalX ||
-                                a1.originalX === atoms[atoms.length-1].originalX ||
-                                a1.originalY === atoms[0].originalY ||
-                                a1.originalY === atoms[atoms.length-1].originalY ||
-                                a1.originalZ === atoms[0].originalZ ||
-                                a1.originalZ === atoms[atoms.length-1].originalZ
-                            ) ||
-                            a2.x === a2.originalX && (
-                                a2.originalX === atoms[0].originalX ||
-                                a2.originalX === atoms[atoms.length-1].originalX ||
-                                a2.originalY === atoms[0].originalY ||
-                                a2.originalY === atoms[atoms.length-1].originalY ||
-                                a2.originalZ === atoms[0].originalZ ||
-                                a2.originalZ === atoms[atoms.length-1].originalZ
-                            )
-                        ) {
-                            const p1 = project(a1.x, a1.y, a1.z);
-                            const p2 = project(a2.x, a2.y, a2.z);
-                            ctx.strokeStyle = a1.displaced || a2.displaced
-                                ? 'rgba(255, 120, 120, 0.95)'
-                                : 'rgba(120, 180, 255, 0.85)';
-                            ctx.beginPath();
-                            ctx.moveTo(p1.x, p1.y);
-                            ctx.lineTo(p2.x, p2.y);
-                            ctx.stroke();
-                        }
+                        const p1 = project(a1.x, a1.y, a1.z);
+                        const p2 = project(a2.x, a2.y, a2.z);
+                        ctx.strokeStyle = a1.displaced || a2.displaced
+                            ? 'rgba(255, 120, 120, 0.95)'
+                            : 'rgba(120, 180, 255, 0.85)';
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
                     });
                 }
 
