@@ -232,10 +232,6 @@
                     <label for="cubeMode">Cube Mode (Simple Cubes Only)</label>
                 </div>
                 <div class="checkbox-row">
-                    <input type="checkbox" id="showSolid">
-                    <label for="showSolid">Show Solid Cubes</label>
-                </div>
-                <div class="checkbox-row">
                     <input type="checkbox" id="showBonds" checked>
                     <label for="showBonds">Show Bonds</label>
                 </div>
@@ -307,7 +303,7 @@
         let rotationY = -39;
         
         // Visual toggles
-        let showSolid = false; // Start with solid cubes OFF for better performance
+    // ...existing code...
         let showBonds = true;
         let showAtoms = true;
         let cubeMode = false; // Cube mode: show only simple cubes, no atoms/bonds
@@ -581,136 +577,6 @@
             ctx.restore();
         }
 
-        // Draw cubic/solid structure - SIMPLIFIED VERSION
-        // Just draw cubes as simple 3D boxes without complex orientation culling
-        function drawSolidStructure() {
-            if (!showSolid) return;
-            ctx.save();
-
-            // Only draw faces for the true outer surfaces (and optionally one layer below)
-            const layers = [0, 1, latticeSize - 2, latticeSize - 1]; // outermost and one layer in
-            const isOuter = idx => (idx === 0 || idx === latticeSize - 1);
-            const isNearOuter = idx => (idx === 1 || idx === latticeSize - 2);
-
-            // Draw faces for each direction
-            for (let i = 0; i < latticeSize - 1; i++) {
-                for (let j = 0; j < latticeSize - 1; j++) {
-                    for (let k = 0; k < latticeSize - 1; k++) {
-                        // Only draw faces on the outer surfaces (and optionally one layer below)
-                        // For each face, check if it's on the outer boundary
-                        const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx100 = (i+1) * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx010 = i * latticeSize * latticeSize + (j+1) * latticeSize + k;
-                        const idx110 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + k;
-                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+1);
-                        const idx101 = (i+1) * latticeSize * latticeSize + j * latticeSize + (k+1);
-                        const idx011 = i * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
-                        const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
-
-                        if (idx111 < atoms.length) {
-                            const corners = [
-                                atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
-                                atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
-                            ];
-                            const p = corners.map(atom => project(atom.x, atom.y, atom.z));
-
-                            // Color based on displacement
-                            const baseColor = corners.some(atom => atom.displaced)
-                                ? [255, 100, 100]
-                                : [100, 150, 255];
-
-                            // Opacity logic
-                            const opacityMultiplier = cubeOpacity / 100;
-                            let fillOpacity = opacityMultiplier;
-                            let strokeOpacity = opacityMultiplier;
-                            if (cubeOpacity === 100) {
-                                fillOpacity = 1.0;
-                                strokeOpacity = 1.0;
-                            }
-
-                            // Stronger/darker edges for boundaries
-                            ctx.lineWidth = 2.2;
-                            ctx.strokeStyle = `rgba(30,30,30,${strokeOpacity})`;
-
-                            // Draw only the faces that are on the outer boundary (or one layer in)
-                            // Front face (z = 0)
-                            if (k === 0 || k === 1) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[0].x, p[0].y);
-                                ctx.lineTo(p[1].x, p[1].y);
-                                ctx.lineTo(p[3].x, p[3].y);
-                                ctx.lineTo(p[2].x, p[2].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                            // Back face (z = max)
-                            if (k === latticeSize - 2 || k === latticeSize - 3) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[4].x, p[4].y);
-                                ctx.lineTo(p[5].x, p[5].y);
-                                ctx.lineTo(p[7].x, p[7].y);
-                                ctx.lineTo(p[6].x, p[6].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                            // Bottom face (y = 0)
-                            if (j === 0 || j === 1) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[0].x, p[0].y);
-                                ctx.lineTo(p[1].x, p[1].y);
-                                ctx.lineTo(p[5].x, p[5].y);
-                                ctx.lineTo(p[4].x, p[4].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                            // Top face (y = max)
-                            if (j === latticeSize - 2 || j === latticeSize - 3) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[2].x, p[2].y);
-                                ctx.lineTo(p[3].x, p[3].y);
-                                ctx.lineTo(p[7].x, p[7].y);
-                                ctx.lineTo(p[6].x, p[6].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                            // Left face (x = 0)
-                            if (i === 0 || i === 1) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[0].x, p[0].y);
-                                ctx.lineTo(p[2].x, p[2].y);
-                                ctx.lineTo(p[6].x, p[6].y);
-                                ctx.lineTo(p[4].x, p[4].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                            // Right face (x = max)
-                            if (i === latticeSize - 2 || i === latticeSize - 3) {
-                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
-                                ctx.beginPath();
-                                ctx.moveTo(p[1].x, p[1].y);
-                                ctx.lineTo(p[5].x, p[5].y);
-                                ctx.lineTo(p[7].x, p[7].y);
-                                ctx.lineTo(p[3].x, p[3].y);
-                                ctx.closePath();
-                                ctx.fill();
-                                ctx.stroke();
-                            }
-                        }
-                    }
-                }
-            }
-            ctx.restore();
-        }
 
         // Draw helical path and ramp surface (optimized)
         function drawHelicalPath(progress) {
@@ -909,8 +775,7 @@
                 return;
             }
             
-            // Draw solid structure (cubes) - this is expensive, so optimize
-            drawSolidStructure();
+            // ...existing code...
             
             // Only draw bonds and atoms if needed
             if (showBonds || showAtoms) {
@@ -947,18 +812,7 @@
                     projected.forEach(({ x, y, z, scale, atom }) => {
                         // Only show atoms on the outer surface if cubes are fully opaque
                         let show = true;
-                        if (showSolid && cubeOpacity === 100) {
-                            // Only show if atom is on the outer surface
-                            const eps = 1e-3;
-                            show = (
-                                Math.abs(atom.originalX - atoms[0].originalX) < eps ||
-                                Math.abs(atom.originalX - atoms[atoms.length-1].originalX) < eps ||
-                                Math.abs(atom.originalY - atoms[0].originalY) < eps ||
-                                Math.abs(atom.originalY - atoms[atoms.length-1].originalY) < eps ||
-                                Math.abs(atom.originalZ - atoms[0].originalZ) < eps ||
-                                Math.abs(atom.originalZ - atoms[atoms.length-1].originalZ) < eps
-                            );
-                        }
+                        // ...existing code...
                         if (!show) return;
 
                         const opacity = Math.max(0.3, 1 - (z + 400) / 900);
@@ -1046,9 +900,7 @@
             }
         });
 
-        document.getElementById('showSolid').addEventListener('change', (e) => {
-            showSolid = e.target.checked;
-        });
+        // ...existing code...
 
         document.getElementById('showBonds').addEventListener('change', (e) => {
             showBonds = e.target.checked;
