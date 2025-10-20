@@ -496,54 +496,54 @@
                 }
             }
             
-            // Function to check if 4 atoms form a valid quadrilateral face
-            function isValidFace(atomIndices) {
-                // Check if all 4 edges of the quad exist
-                const edges = [
-                    [atomIndices[0], atomIndices[1]],
-                    [atomIndices[1], atomIndices[2]],
-                    [atomIndices[2], atomIndices[3]],
-                    [atomIndices[3], atomIndices[0]]
-                ];
-                
-                for (const [idx1, idx2] of edges) {
-                    if (!atomConnections.get(idx1).has(idx2)) {
-                        return false;
-                    }
-                }
-                return true;
+            // Helper function to check if 4 atoms form a valid quad cycle
+            function formsValidQuad(a, b, c, d) {
+                return atomConnections.get(a).has(b) &&
+                       atomConnections.get(b).has(c) &&
+                       atomConnections.get(c).has(d) &&
+                       atomConnections.get(d).has(a) &&
+                       !atomConnections.get(a).has(c) && // diagonals should not be connected
+                       !atomConnections.get(b).has(d);
             }
             
             // Create faces dynamically based on current atom positions
             const processedFaces = new Set();
             
-            // Try to find cube faces by examining each atom and its neighbors
-            for (let i = 0; i < atoms.length; i++) {
-                const neighbors = Array.from(atomConnections.get(i));
-                
-                // We need at least 3 neighbors to form a face
-                if (neighbors.length < 3) continue;
-                
-                // Try to find rectangular faces (4 atoms forming a quad)
-                for (let n1 = 0; n1 < neighbors.length; n1++) {
-                    for (let n2 = n1 + 1; n2 < neighbors.length; n2++) {
-                        const j = neighbors[n1];
-                        const k = neighbors[n2];
-                        
-                        // Check if j and k share a common neighbor that completes a quad
-                        const jNeighbors = atomConnections.get(j);
-                        const kNeighbors = atomConnections.get(k);
-                        
-                        for (const l of jNeighbors) {
-                            if (l !== i && kNeighbors.has(l)) {
-                                // Found a potential quad: i-j-l-k
-                                const quad = [i, j, l, k].sort((a, b) => a - b);
-                                const faceKey = quad.join(',');
-                                
-                                if (!processedFaces.has(faceKey) && isValidFace([i, j, l, k])) {
+            // PASS 1: Check faces from original lattice structure
+            for (let i = 0; i < latticeSize - 1; i++) {
+                for (let j = 0; j < latticeSize - 1; j++) {
+                    for (let k = 0; k < latticeSize - 1; k++) {
+                        const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx100 = (i+1) * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx010 = i * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx110 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx101 = (i+1) * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx011 = i * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+                        const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+
+                        if (idx111 < atoms.length) {
+                            // Define all 6 faces of the cube with their corner indices
+                            const faces = [
+                                [idx000, idx100, idx110, idx010],  // front (z-min)
+                                [idx001, idx011, idx111, idx101],  // back (z-max)
+                                [idx000, idx010, idx011, idx001],  // left (x-min)
+                                [idx100, idx101, idx111, idx110],  // right (x-max)
+                                [idx000, idx001, idx101, idx100],  // bottom (y-min)
+                                [idx010, idx110, idx111, idx011]   // top (y-max)
+                            ];
+                            
+                            // Check each face
+                            faces.forEach(faceIndices => {
+                                // Check if all 4 edges of this face exist (are bonded)
+                                if (formsValidQuad(faceIndices[0], faceIndices[1], faceIndices[2], faceIndices[3])) {
+                                    // Create unique key
+                                    const faceKey = [...faceIndices].sort((a, b) => a - b).join(',');
+                                    if (processedFaces.has(faceKey)) return;
                                     processedFaces.add(faceKey);
                                     
-                                    const corners = [atoms[i], atoms[j], atoms[l], atoms[k]];
+                                    // Get the atoms and project them
+                                    const corners = faceIndices.map(idx => atoms[idx]);
                                     const p = corners.map(atom => project(atom.x, atom.y, atom.z));
                                     
                                     // Check if any corner is displaced
@@ -553,23 +553,59 @@
                                     // Calculate average Z depth for this face
                                     const avgZ = p.reduce((sum, proj) => sum + proj.z, 0) / p.length;
                                     
-                                    // Calculate face normal in screen space to determine visibility
-                                    const v1x = p[1].x - p[0].x;
-                                    const v1y = p[1].y - p[0].y;
-                                    const v2x = p[3].x - p[0].x;
-                                    const v2y = p[3].y - p[0].y;
-                                    const crossZ = v1x * v2y - v1y * v2x;
+                                    facesToDraw.push({
+                                        points: p,
+                                        depth: avgZ,
+                                        color: baseColor,
+                                        fillOpacity: 0.7,
+                                        strokeOpacity: 0.9
+                                    });
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // PASS 2: Find NEW faces by searching through connected atoms
+            // This finds faces that form due to stretching
+            for (let a = 0; a < atoms.length; a++) {
+                const neighborsA = Array.from(atomConnections.get(a));
+                if (neighborsA.length < 2) continue;
+                
+                for (let i = 0; i < neighborsA.length; i++) {
+                    const b = neighborsA[i];
+                    const neighborsB = atomConnections.get(b);
+                    
+                    for (let j = i + 1; j < neighborsA.length; j++) {
+                        const d = neighborsA[j];
+                        
+                        // Find common neighbor of b and d (forms a quad a-b-c-d)
+                        const neighborsD = atomConnections.get(d);
+                        
+                        for (const c of neighborsB) {
+                            if (c > a && neighborsD.has(c) && !atomConnections.get(a).has(c)) {
+                                // Found a valid quad: a-b-c-d
+                                const faceKey = [a, b, c, d].sort((x, y) => x - y).join(',');
+                                
+                                if (!processedFaces.has(faceKey) && formsValidQuad(a, b, c, d)) {
+                                    processedFaces.add(faceKey);
                                     
-                                    // Only draw faces facing the camera
-                                    if (crossZ < 0) {
-                                        facesToDraw.push({
-                                            points: p,
-                                            depth: avgZ,
-                                            color: baseColor,
-                                            fillOpacity: 0.7,
-                                            strokeOpacity: 0.9
-                                        });
-                                    }
+                                    const corners = [atoms[a], atoms[b], atoms[c], atoms[d]];
+                                    const p = corners.map(atom => project(atom.x, atom.y, atom.z));
+                                    
+                                    const isDisplaced = corners.some(atom => atom.displaced);
+                                    const baseColor = isDisplaced ? [255, 100, 100] : [100, 150, 255];
+                                    
+                                    const avgZ = p.reduce((sum, proj) => sum + proj.z, 0) / p.length;
+                                    
+                                    facesToDraw.push({
+                                        points: p,
+                                        depth: avgZ,
+                                        color: baseColor,
+                                        fillOpacity: 0.7,
+                                        strokeOpacity: 0.9
+                                    });
                                 }
                             }
                         }
