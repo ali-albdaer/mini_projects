@@ -185,6 +185,10 @@ References:
             font-size: 12px;
             cursor: pointer;
         }
+
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -238,7 +242,7 @@ References:
                     <input type="checkbox" id="showBonds" checked>
                     <label for="showBonds">Show Bonds</label>
                 </div>
-                <div class="checkbox-row">
+                <div class="checkbox-row" id="showAtomsRow">
                     <input type="checkbox" id="showAtoms" checked>
                     <label for="showAtoms">Show Atoms</label>
                 </div>
@@ -250,12 +254,12 @@ References:
                     <input type="checkbox" id="showShearVectors" checked>
                     <label for="showShearVectors">Show Shear Vectors</label>
                 </div>
-                <div class="slider-row">
+                <div class="slider-row" id="atomSizeRow">
                     <label>Atom Size:</label>
                     <input type="range" id="atomSize" min="1" max="10" value="4">
                     <span class="value-display" id="atomSizeValue">4</span>
                 </div>
-                <div class="slider-row">
+                <div class="slider-row" id="bondWidthRow">
                     <label>Bond Width:</label>
                     <input type="range" id="bondWidth" min="1" max="5" value="1">
                     <span class="value-display" id="bondWidthValue">1</span>
@@ -951,6 +955,20 @@ References:
 
         document.getElementById('fillCubes').addEventListener('change', (e) => {
             fillCubes = e.target.checked;
+            // Hide/show sliders and show atoms checkbox based on fillCubes state
+            const atomSizeRow = document.getElementById('atomSizeRow');
+            const bondWidthRow = document.getElementById('bondWidthRow');
+            const showAtomsRow = document.getElementById('showAtomsRow');
+            
+            if (fillCubes) {
+                atomSizeRow.classList.add('hidden');
+                bondWidthRow.classList.add('hidden');
+                showAtomsRow.classList.add('hidden');
+            } else {
+                atomSizeRow.classList.remove('hidden');
+                bondWidthRow.classList.remove('hidden');
+                showAtomsRow.classList.remove('hidden');
+            }
         });
 
         document.getElementById('showShearVectors').addEventListener('change', (e) => {
@@ -1049,7 +1067,21 @@ References:
             cameraDistance = Math.max(400, Math.min(1500, cameraDistance));
         });
 
+        // Initialize visibility based on initial fillCubes state
+        function initializeVisibility() {
+            const atomSizeRow = document.getElementById('atomSizeRow');
+            const bondWidthRow = document.getElementById('bondWidthRow');
+            const showAtomsRow = document.getElementById('showAtomsRow');
+            
+            if (fillCubes) {
+                atomSizeRow.classList.add('hidden');
+                bondWidthRow.classList.add('hidden');
+                showAtomsRow.classList.add('hidden');
+            }
+        }
+
         initLattice();
+        initializeVisibility();
         animate();
     </script>
 </body>
