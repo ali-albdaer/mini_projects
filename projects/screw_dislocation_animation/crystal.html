@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #0f1419 100%);
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -29,6 +29,7 @@
             width: 100vw;
             height: 100vh;
             cursor: move;
+            background: radial-gradient(circle at 50% 50%, rgba(30, 50, 80, 0.3) 0%, rgba(0, 0, 0, 0.8) 100%);
         }
 
         .ui-container {
@@ -46,25 +47,28 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            font-size: 28px;
+            text-shadow: 0 0 20px rgba(100, 150, 255, 0.8), 0 0 40px rgba(100, 150, 255, 0.4), 2px 2px 4px rgba(0,0,0,0.8);
+            font-size: 32px;
             font-weight: bold;
             pointer-events: none;
+            letter-spacing: 2px;
+            color: #e8f4ff;
         }
 
         .control-panel {
             position: absolute;
             top: 70px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
+            background: rgba(15, 20, 30, 0.92);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            border-radius: 15px;
             padding: 15px;
             max-width: 320px;
             max-height: calc(100vh - 100px);
             overflow-y: auto;
             pointer-events: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7), 0 0 20px rgba(100, 150, 255, 0.1);
         }
 
         .control-panel::-webkit-scrollbar {
@@ -518,17 +522,21 @@
                     if (cross < 0) return; // Don't draw back-facing faces
                     
                     const avgZ = (projected[0].z + projected[1].z + projected[2].z + projected[3].z) / 4;
-                    const opacity = Math.max(0.05, 0.7 - (avgZ + 400) / 1000);
+                    const depthFactor = Math.max(0.3, 1 - (avgZ + 400) / 1200);
                     
-                    // Vary brightness by face for 3D effect
-                    const brightness = 0.6 + (faceIdx * 0.08);
+                    // Vary brightness by face for strong 3D lighting effect
+                    const brightness = 0.5 + (faceIdx * 0.15);
                     const r = Math.floor(baseColor[0] * brightness);
                     const g = Math.floor(baseColor[1] * brightness);
                     const b = Math.floor(baseColor[2] * brightness);
                     
-                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity * 0.4})`;
-                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity * 0.7})`;
-                    ctx.lineWidth = 0.5;
+                    // Much less transparent - more solid appearance
+                    const fillOpacity = depthFactor * 0.75; // Increased from 0.4
+                    const strokeOpacity = depthFactor * 0.95; // Increased from 0.7
+                    
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${fillOpacity})`;
+                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${strokeOpacity})`;
+                    ctx.lineWidth = 1.2;
                     
                     ctx.beginPath();
                     ctx.moveTo(projected[0].x, projected[0].y);
@@ -573,9 +581,9 @@
             
             // Draw the ramp surface connecting inner and outer helix (simplified)
             if (helixPoints.length > 5) {
-                ctx.fillStyle = 'rgba(255, 215, 0, 0.12)';
-                ctx.strokeStyle = 'rgba(255, 215, 0, 0.25)';
-                ctx.lineWidth = 1;
+                ctx.fillStyle = 'rgba(255, 215, 0, 0.18)';
+                ctx.strokeStyle = 'rgba(255, 215, 0, 0.35)';
+                ctx.lineWidth = 1.5;
                 
                 // Draw fewer surface quads for performance
                 for (let i = 0; i < helixPoints.length - 1; i += 5) {
@@ -604,13 +612,11 @@
                 }
             }
             
-            // Draw the outer helix edge (bright)
+            // Draw the outer helix edge (bright, no expensive shadows)
             const projectedHelix = helixPoints.map(p => project(p.x, p.y, p.z));
             
-            ctx.lineWidth = 5;
-            ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
-            ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
-            ctx.shadowBlur = 20;
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = 'rgba(255, 235, 50, 1)';
             
             ctx.beginPath();
             if (projectedHelix.length > 0) {
@@ -622,9 +628,8 @@
             ctx.stroke();
             
             // Draw inner helix edge
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'rgba(255, 180, 0, 0.7)';
-            ctx.shadowBlur = 10;
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(255, 200, 50, 0.85)';
             
             ctx.beginPath();
             helixPoints.forEach((p, i) => {
@@ -800,14 +805,14 @@
                         }
                     });
                     
-                    // Draw normal bonds
+                    // Draw normal bonds (no shadows for performance)
                     normalBonds.forEach(([idx1, idx2]) => {
                         const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
                         const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
                         const avgZ = (p1.z + p2.z) / 2;
-                        const opacity = Math.max(0.1, 1 - (avgZ + 400) / 800);
+                        const opacity = Math.max(0.2, 1 - (avgZ + 400) / 900);
                         
-                        ctx.strokeStyle = `rgba(100, 150, 255, ${opacity * 0.3})`;
+                        ctx.strokeStyle = `rgba(120, 180, 255, ${opacity * 0.6})`;
                         ctx.beginPath();
                         ctx.moveTo(p1.x, p1.y);
                         ctx.lineTo(p2.x, p2.y);
@@ -819,9 +824,9 @@
                         const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
                         const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
                         const avgZ = (p1.z + p2.z) / 2;
-                        const opacity = Math.max(0.1, 1 - (avgZ + 400) / 800);
+                        const opacity = Math.max(0.3, 1 - (avgZ + 400) / 900);
                         
-                        ctx.strokeStyle = `rgba(255, 100, 100, ${opacity * 0.6})`;
+                        ctx.strokeStyle = `rgba(255, 120, 120, ${opacity * 0.85})`;
                         ctx.beginPath();
                         ctx.moveTo(p1.x, p1.y);
                         ctx.lineTo(p2.x, p2.y);
@@ -829,29 +834,29 @@
                     });
                 }
                 
-                // Draw atoms
+                // Draw atoms (no shadows for performance)
                 if (showAtoms) {
                     projected.forEach(({ x, y, z, scale, atom }) => {
-                        const opacity = Math.max(0.2, 1 - (z + 400) / 800);
+                        const opacity = Math.max(0.3, 1 - (z + 400) / 900);
                         const size = atomRadius * scale;
                         
-                        // Color based on displacement
+                        // Color based on displacement with better visibility
                         if (atom.displaced) {
-                            const intensity = Math.min(255, 150 + Math.abs(atom.z - atom.originalZ) * 2);
+                            const intensity = Math.min(255, 160 + Math.abs(atom.z - atom.originalZ) * 2.5);
                             ctx.fillStyle = `rgba(${intensity}, 100, 100, ${opacity})`;
                         } else {
-                            ctx.fillStyle = `rgba(100, 150, 255, ${opacity})`;
+                            ctx.fillStyle = `rgba(120, 170, 255, ${opacity})`;
                         }
                         
                         ctx.beginPath();
                         ctx.arc(x, y, size, 0, Math.PI * 2);
                         ctx.fill();
                         
-                        // Highlight effect
+                        // Bright highlight effect
                         if (size > 2) {
-                            ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
+                            ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
                             ctx.beginPath();
-                            ctx.arc(x - size * 0.3, y - size * 0.3, size * 0.4, 0, Math.PI * 2);
+                            ctx.arc(x - size * 0.3, y - size * 0.3, size * 0.45, 0, Math.PI * 2);
                             ctx.fill();
                         }
                     });
