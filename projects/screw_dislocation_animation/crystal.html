@@ -194,8 +194,8 @@
                 </div>
                 <div class="slider-row">
                     <label>Shear Force:</label>
-                    <input type="range" id="shearForce" min="0" max="350" value="50">
-                    <span class="value-display" id="shearForceValue">50</span>
+                    <input type="range" id="shearForce" min="0" max="350" value="150">
+                    <span class="value-display" id="shearForceValue">150</span>
                 </div>
                 <div class="slider-row">
                     <label>Speed:</label>
@@ -209,8 +209,8 @@
                 <div class="section-title">View</div>
                 <div class="slider-row">
                     <label>Rotation X:</label>
-                    <input type="range" id="rotationX" min="-180" max="180" value="-60">
-                    <span class="value-display" id="rotationXValue">-60°</span>
+                    <input type="range" id="rotationX" min="-180" max="180" value="-59">
+                    <span class="value-display" id="rotationXValue">-59°</span>
                 </div>
                 <div class="slider-row">
                     <label>Rotation Y:</label>
@@ -236,7 +236,7 @@
                     <label for="showAtoms">Show Atoms</label>
                 </div>
                 <div class="checkbox-row">
-                    <input type="checkbox" id="fillCubes">
+                    <input type="checkbox" id="fillCubes" checked>
                     <label for="fillCubes">Fill Cubes</label>
                 </div>
                 <div class="slider-row">
@@ -292,15 +292,15 @@
         let dislocationPosition = 0;
         let isAnimating = false;
         let animationPaused = false;
-        let shearForceValue = 145;
+        let shearForceValue = 150;
         let animSpeed = 50;
-        let rotationX = -60;
+        let rotationX = -59;
         let rotationY = -39;
         
         // Visual toggles
         let showBonds = true;
         let showAtoms = true;
-        let fillCubes = false;
+        let fillCubes = true;
 
         // Camera and interaction
         let cameraDistance = 800;
