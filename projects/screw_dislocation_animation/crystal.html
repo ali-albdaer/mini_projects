@@ -244,6 +244,11 @@
                     <label for="showAtoms">Show Atoms</label>
                 </div>
                 <div class="slider-row">
+                    <label>Cube Opacity:</label>
+                    <input type="range" id="cubeOpacity" min="10" max="100" value="75">
+                    <span class="value-display" id="cubeOpacityValue">75</span>
+                </div>
+                <div class="slider-row">
                     <label>Atom Size:</label>
                     <input type="range" id="atomSize" min="1" max="10" value="4">
                     <span class="value-display" id="atomSizeValue">4</span>
@@ -289,6 +294,7 @@
         let spacing = 40;
         let atomRadius = 4;
         let bondWidth = 1;
+        let cubeOpacity = 75; // Percentage (0-100)
         
         // Animation state
         let shearProgress = 0;
@@ -362,11 +368,11 @@
             });
         }
 
-        // Apply screw dislocation
+        // Apply screw dislocation based on linear elasticity theory
+        // Reference: https://dtrinkle.matse.illinois.edu/MatSE584/kap_5/backbone/r5_2_2.html
         function applyScrewDislocation(progress) {
-            const burgers = spacing * 0.5; // Reduced Burgers vector for more realistic displacement
-            const maxDisplacement = (shearForceValue / 50) * burgers;
-            const coreRadius = spacing * 1.0; // Larger core radius
+            const burgers = spacing * 0.5; // Burgers vector magnitude
+            const coreRadius = burgers * 2.0; // Core radius r₀ ≈ 1-4b (we use 2b)
             
             atoms.forEach(atom => {
                 const x = atom.originalX;
@@ -376,8 +382,9 @@
                 // Calculate distance from dislocation line (along z-axis at center)
                 const r = Math.sqrt(x * x + y * y);
                 
-                // Atoms at the exact center don't move
-                if (r < spacing * 0.4) {
+                // CORE REGION: Linear elasticity theory breaks down in the core
+                // For r < r₀, we exclude these atoms or handle them separately
+                if (r < coreRadius) {
                     atom.x = x;
                     atom.y = y;
                     atom.z = z;
@@ -388,36 +395,40 @@
                 // Calculate angle around dislocation line (-π to π)
                 const theta = Math.atan2(y, x);
                 
-                // SCREW DISLOCATION: Displacement is PARALLEL to dislocation line (z-direction)
-                // and proportional to the angle around the line
-                // This creates the helical/spiral structure where each 360° around 
-                // corresponds to one Burgers vector displacement
+                // ============================================
+                // SCREW DISLOCATION - Linear Elasticity Theory
+                // ============================================
+                // For a screw dislocation:
+                // 1. u_x = 0 (no displacement in x-direction)
+                // 2. u_y = 0 (no displacement in y-direction)
+                // 3. u_z = (b / 2π) × θ (displacement parallel to dislocation line)
+                //
+                // This formula is valid for r > r₀ (outside core region)
+                // The displacement varies linearly with angle θ, NOT with distance r
+                // Each full rotation (2π) corresponds to one Burgers vector displacement
                 
-                // The key formula: u_z = (b / 2π) * θ
-                // where b is the Burgers vector, θ is angle around dislocation
+                // Calculate the displacement using the exact formula from elasticity theory
+                // u_z = (b / 2π) × θ
                 const baseDisplacement = (theta / (2 * Math.PI)) * burgers;
                 
-                // Apply stronger decay function with distance from core
-                // This makes atoms further away move much less
-                const normalizedR = r / (spacing * 4); // Normalize distance
-                const decayFactor = Math.exp(-normalizedR * normalizedR * 1.5); // Gaussian-like decay
+                // Apply shear force multiplier (user control)
+                const forceMultiplier = shearForceValue / 50;
                 
-                // Smooth animation progress (ease in-out)
+                // Smooth animation progress (ease in-out for visual appeal)
                 const smoothProgress = progress < 0.5 
                     ? 2 * progress * progress 
                     : 1 - Math.pow(-2 * progress + 2, 2) / 2;
                 
-                // Apply the displacement (this is the screw dislocation!)
-                const totalDisplacement = baseDisplacement * smoothProgress * decayFactor;
-                atom.z = z + totalDisplacement * maxDisplacement;
+                // Final displacement in z-direction
+                const u_z = baseDisplacement * smoothProgress * forceMultiplier;
                 
-                // Atoms maintain their x,y positions (no radial movement in pure screw)
-                // Only slight elastic distortion
-                const elasticStrain = 0.015 * totalDisplacement * decayFactor;
-                atom.x = x * (1 + elasticStrain);
-                atom.y = y * (1 + elasticStrain);
+                // Apply displacements according to screw dislocation theory
+                atom.x = x;  // u_x = 0
+                atom.y = y;  // u_y = 0
+                atom.z = z + u_z;  // u_z = (b/2π)×θ
                 
-                atom.displaced = Math.abs(totalDisplacement) > 0.02;
+                // Mark as displaced if displacement is significant
+                atom.displaced = Math.abs(u_z) > 0.02;
             });
         }
 
@@ -449,14 +460,15 @@
             };
         }
 
-        // Draw cubic/solid structure (optimized) - using ACTUAL atom positions
+        // Draw cubic/solid structure - SIMPLIFIED VERSION
+        // Just draw cubes as simple 3D boxes without complex orientation culling
         function drawSolidStructure() {
             if (!showSolid) return;
             
             ctx.save();
             
             // Only draw a subset of cubes for performance
-            const step = latticeSize > 10 ? 2 : 1; // Skip every other cube for large lattices
+            const step = latticeSize > 10 ? 2 : 1;
             const cubes = [];
             
             for (let i = 0; i < latticeSize - 1; i += step) {
@@ -472,13 +484,12 @@
                         const idx111 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + Math.min((k+step), latticeSize-1);
                         
                         if (idx111 < atoms.length) {
-                            // Use ACTUAL displaced atom positions, not original positions!
                             const corners = [
                                 atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
                                 atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
                             ];
                             
-                            // Calculate center for depth sorting using ACTUAL positions
+                            // Calculate center Z for depth sorting
                             let centerZ = 0;
                             for (let ci = 0; ci < 8; ci++) {
                                 centerZ += corners[ci].z;
@@ -493,58 +504,94 @@
                 }
             }
             
-            // Sort cubes by depth
+            // Sort cubes by depth (back to front for proper transparency)
             cubes.sort((a, b) => a.centerZ - b.centerZ);
             
-            // Draw each cube's visible faces only
+            // Draw each cube - SIMPLE approach: draw all 6 faces
             cubes.forEach(cube => {
                 const c = cube.corners;
                 
-                // Define the 6 faces of the cube (only visible ones will be drawn)
-                // Using ACTUAL atom x,y,z coordinates
+                // Project all 8 corners once
+                const p = c.map(atom => project(atom.x, atom.y, atom.z));
+                
+                // Define the 6 faces with their vertices (in consistent winding order)
+                // Front-bottom-left is c[0], going through cube to back-top-right c[7]
                 const faces = [
-                    { verts: [c[0], c[1], c[3], c[2]], normal: [0, 0, -1] }, // front
-                    { verts: [c[4], c[5], c[7], c[6]], normal: [0, 0, 1] },  // back
-                    { verts: [c[0], c[1], c[5], c[4]], normal: [0, -1, 0] }, // bottom
-                    { verts: [c[2], c[3], c[7], c[6]], normal: [0, 1, 0] },  // top
-                    { verts: [c[0], c[2], c[6], c[4]], normal: [-1, 0, 0] }, // left
-                    { verts: [c[1], c[3], c[7], c[5]], normal: [1, 0, 0] }   // right
+                    // Front face (z = front)
+                    { verts: [p[0], p[1], p[3], p[2]], name: 'front', brightness: 1.0 },
+                    // Back face (z = back)
+                    { verts: [p[4], p[6], p[7], p[5]], name: 'back', brightness: 0.5 },
+                    // Bottom face (y = bottom)
+                    { verts: [p[0], p[4], p[5], p[1]], name: 'bottom', brightness: 0.7 },
+                    // Top face (y = top)
+                    { verts: [p[2], p[3], p[7], p[6]], name: 'top', brightness: 0.9 },
+                    // Left face (x = left)
+                    { verts: [p[0], p[2], p[6], p[4]], name: 'left', brightness: 0.6 },
+                    // Right face (x = right)
+                    { verts: [p[1], p[5], p[7], p[3]], name: 'right', brightness: 0.8 }
                 ];
                 
-                // Color based on displacement
+                // Base color based on displacement
                 const baseColor = cube.displaced ? [255, 100, 100] : [100, 150, 255];
                 
-                faces.forEach((face, faceIdx) => {
-                    // Project using ACTUAL atom positions
-                    const projected = face.verts.map(atom => project(atom.x, atom.y, atom.z));
+                // Collect visible faces with their depth for sorting
+                const visibleFaces = [];
+                
+                faces.forEach(face => {
+                    // Calculate if face is front-facing using cross product in 2D screen space
+                    const v1x = face.verts[1].x - face.verts[0].x;
+                    const v1y = face.verts[1].y - face.verts[0].y;
+                    const v2x = face.verts[2].x - face.verts[0].x;
+                    const v2y = face.verts[2].y - face.verts[0].y;
+                    const cross = v1x * v2y - v1y * v2x;
                     
-                    // Back-face culling
-                    const p0 = projected[0], p1 = projected[1], p2 = projected[2];
-                    const cross = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
-                    if (cross < 0) return; // Don't draw back-facing faces
+                    // Only include front-facing faces (cross product > 0)
+                    if (cross > 0) {
+                        // Calculate average Z depth for this face
+                        const avgZ = (face.verts[0].z + face.verts[1].z + face.verts[2].z + face.verts[3].z) / 4;
+                        visibleFaces.push({ face, avgZ });
+                    }
+                });
+                
+                // Sort visible faces by depth (back to front)
+                visibleFaces.sort((a, b) => a.avgZ - b.avgZ);
+                
+                // Draw only the visible faces in correct order
+                visibleFaces.forEach(({ face, avgZ }) => {
+                    // Apply brightness variation for 3D effect
+                    const r = Math.floor(baseColor[0] * face.brightness);
+                    const g = Math.floor(baseColor[1] * face.brightness);
+                    const b = Math.floor(baseColor[2] * face.brightness);
                     
-                    const avgZ = (projected[0].z + projected[1].z + projected[2].z + projected[3].z) / 4;
-                    const depthFactor = Math.max(0.3, 1 - (avgZ + 400) / 1200);
+                    // Apply opacity with optional depth fading
+                    const opacityMultiplier = cubeOpacity / 100;
+                    let fillOpacity, strokeOpacity;
                     
-                    // Vary brightness by face for strong 3D lighting effect
-                    const brightness = 0.5 + (faceIdx * 0.15);
-                    const r = Math.floor(baseColor[0] * brightness);
-                    const g = Math.floor(baseColor[1] * brightness);
-                    const b = Math.floor(baseColor[2] * brightness);
+                    if (cubeOpacity === 100) {
+                        // At 100% opacity, make it completely opaque (1.0)
+                        fillOpacity = 1.0;
+                        strokeOpacity = 1.0;
+                    } else if (cubeOpacity >= 90) {
+                        // At high opacity, make it nearly solid (no depth fading)
+                        fillOpacity = opacityMultiplier * 0.95;
+                        strokeOpacity = opacityMultiplier;
+                    } else {
+                        // At lower opacity, apply subtle depth fading
+                        const depthFactor = Math.max(0.3, 1 - (avgZ + 400) / 1200);
+                        fillOpacity = depthFactor * opacityMultiplier * 0.7;
+                        strokeOpacity = depthFactor * opacityMultiplier * 0.8;
+                    }
                     
-                    // Much less transparent - more solid appearance
-                    const fillOpacity = depthFactor * 0.75; // Increased from 0.4
-                    const strokeOpacity = depthFactor * 0.95; // Increased from 0.7
-                    
+                    // Draw the face
                     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${fillOpacity})`;
-                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${strokeOpacity})`;
+                    ctx.strokeStyle = `rgba(${r * 0.7}, ${g * 0.7}, ${b * 0.7}, ${strokeOpacity})`;
                     ctx.lineWidth = 1.2;
                     
                     ctx.beginPath();
-                    ctx.moveTo(projected[0].x, projected[0].y);
-                    ctx.lineTo(projected[1].x, projected[1].y);
-                    ctx.lineTo(projected[2].x, projected[2].y);
-                    ctx.lineTo(projected[3].x, projected[3].y);
+                    ctx.moveTo(face.verts[0].x, face.verts[0].y);
+                    ctx.lineTo(face.verts[1].x, face.verts[1].y);
+                    ctx.lineTo(face.verts[2].x, face.verts[2].y);
+                    ctx.lineTo(face.verts[3].x, face.verts[3].y);
                     ctx.closePath();
                     ctx.fill();
                     ctx.stroke();
@@ -661,15 +708,19 @@
                 }
             });
             
-            // Draw dislocation line (central axis) with labels
-            const topPoint = project(0, 0, centerOffset);
-            const bottomPoint = project(0, 0, centerOffset + height);
+            // Draw dislocation line (central axis) with labels - EXTENDED for visibility
+            const extensionFactor = 1.3; // Extend 30% beyond the lattice
+            const extendedHeight = height * extensionFactor;
+            const extendedOffset = -extendedHeight / 2;
             
-            ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
-            ctx.lineWidth = 4;
+            const topPoint = project(0, 0, extendedOffset);
+            const bottomPoint = project(0, 0, extendedOffset + extendedHeight);
+            
+            ctx.strokeStyle = 'rgba(255, 50, 50, 0.9)';
+            ctx.lineWidth = 5;
             ctx.setLineDash([12, 6]);
-            ctx.shadowColor = 'rgba(255, 50, 50, 0.6)';
-            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(255, 50, 50, 0.7)';
+            ctx.shadowBlur = 20;
             ctx.beginPath();
             ctx.moveTo(topPoint.x, topPoint.y);
             ctx.lineTo(bottomPoint.x, bottomPoint.y);
@@ -714,28 +765,48 @@
             ctx.restore();
         }
 
-        // Draw shear force arrows
+        // Draw shear force arrows - showing the rotational/torsional shear pattern
         function drawShearForces(progress) {
             if (progress < 0.1) return;
             
             ctx.save();
             ctx.globalAlpha = Math.min(progress * 2, 0.7);
             
-            const arrowLength = 80;
-            const arrowSpacing = 100;
-            const offsetY = -200;
+            // For a screw dislocation, shear stress acts tangentially around the dislocation line
+            // σ_θz acts parallel to z-axis in radial planes (torque-like pattern)
             
-            for (let i = 0; i < 3; i++) {
-                const x1 = canvas.width / 2 - 150 + i * arrowSpacing;
-                const y1 = canvas.height / 2 + offsetY;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 120;
+            const arrowLength = 70;
+            
+            // Draw circular arrows showing rotational shear around the dislocation line
+            const numArrows = 8;
+            for (let i = 0; i < numArrows; i++) {
+                const angle = (i / numArrows) * 2 * Math.PI;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
                 
-                // Top arrows (pointing right)
-                drawArrow(x1, y1, x1 + arrowLength, y1, '#ff6b6b', 3);
+                // Tangential direction (perpendicular to radial)
+                const tangentAngle = angle + Math.PI / 2;
+                const x2 = x + arrowLength * Math.cos(tangentAngle);
+                const y2 = y + arrowLength * Math.sin(tangentAngle);
                 
-                // Bottom arrows (pointing left)
-                const y2 = canvas.height / 2 - offsetY;
-                drawArrow(x1 + arrowLength, y2, x1, y2, '#4ecdc4', 3);
+                // Color gradient from red to cyan around the circle
+                const hue = (i / numArrows) * 360;
+                const color = `hsl(${hue}, 80%, 60%)`;
+                
+                drawArrow(x, y, x2, y2, color, 3);
             }
+            
+            // Add label
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Shear Stress (τ_θz)', centerX, centerY - radius - 20);
+            ctx.font = '12px Arial';
+            ctx.fillText('Rotational Pattern', centerX, centerY - radius - 5);
             
             ctx.restore();
         }
@@ -958,6 +1029,11 @@
         document.getElementById('bondWidth').addEventListener('input', (e) => {
             bondWidth = parseInt(e.target.value);
             document.getElementById('bondWidthValue').textContent = bondWidth;
+        });
+
+        document.getElementById('cubeOpacity').addEventListener('input', (e) => {
+            cubeOpacity = parseInt(e.target.value);
+            document.getElementById('cubeOpacityValue').textContent = cubeOpacity;
         });
 
         document.getElementById('latticeSize').addEventListener('input', (e) => {
