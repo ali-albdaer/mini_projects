@@ -228,21 +228,12 @@
             <div class="control-section">
                 <div class="section-title">Visual Settings</div>
                 <div class="checkbox-row">
-                    <input type="checkbox" id="cubeMode">
-                    <label for="cubeMode">Cube Mode (Simple Cubes Only)</label>
-                </div>
-                <div class="checkbox-row">
                     <input type="checkbox" id="showBonds" checked>
                     <label for="showBonds">Show Bonds</label>
                 </div>
                 <div class="checkbox-row">
                     <input type="checkbox" id="showAtoms" checked>
                     <label for="showAtoms">Show Atoms</label>
-                </div>
-                <div class="slider-row">
-                    <label>Cube Opacity:</label>
-                    <input type="range" id="cubeOpacity" min="10" max="100" value="75">
-                    <span class="value-display" id="cubeOpacityValue">75</span>
                 </div>
                 <div class="slider-row">
                     <label>Atom Size:</label>
@@ -290,7 +281,7 @@
         let spacing = 40;
         let atomRadius = 4;
         let bondWidth = 1;
-        let cubeOpacity = 75; // Percentage (0-100)
+    // ...existing code...
         
         // Animation state
         let shearProgress = 0;
@@ -306,7 +297,7 @@
     // ...existing code...
         let showBonds = true;
         let showAtoms = true;
-        let cubeMode = false; // Cube mode: show only simple cubes, no atoms/bonds
+    // ...existing code...
 
         // Camera and interaction
         let cameraDistance = 800;
@@ -770,10 +761,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // If cube mode is enabled, only draw simple cubes
-            if (cubeMode) {
-                drawSimpleCubes();
-                return;
-            }
+            // ...existing code...
             
             // ...existing code...
             
@@ -881,24 +869,7 @@
         });
 
         // Checkboxes
-        document.getElementById('cubeMode').addEventListener('change', (e) => {
-            cubeMode = e.target.checked;
-            // Optionally disable other visual options when cube mode is on
-            if (cubeMode) {
-                showSolid = false;
-                showBonds = false;
-                showAtoms = false;
-                document.getElementById('showSolid').checked = false;
-                document.getElementById('showBonds').checked = false;
-                document.getElementById('showAtoms').checked = false;
-            } else {
-                // Re-enable default view
-                showBonds = true;
-                showAtoms = true;
-                document.getElementById('showBonds').checked = true;
-                document.getElementById('showAtoms').checked = true;
-            }
-        });
+        // ...existing code...
 
         // ...existing code...
 
@@ -949,10 +920,7 @@
             document.getElementById('bondWidthValue').textContent = bondWidth;
         });
 
-        document.getElementById('cubeOpacity').addEventListener('input', (e) => {
-            cubeOpacity = parseInt(e.target.value);
-            document.getElementById('cubeOpacityValue').textContent = cubeOpacity;
-        });
+        // ...existing code...
 
         document.getElementById('latticeSize').addEventListener('input', (e) => {
             latticeSize = parseInt(e.target.value);
