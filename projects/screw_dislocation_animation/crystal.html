@@ -538,13 +538,19 @@
                                 
                                 // Only draw faces facing the camera (negative cross product in screen space)
                                 if (crossZ < 0) {
-                                    facesToDraw.push({
-                                        points: face.indices.map(idx => p[idx]),
-                                        depth: avgZ,
-                                        color: baseColor,
-                                        fillOpacity,
-                                        strokeOpacity
-                                    });
+                                        // Skip faces if all four atoms are displaced too much (departed)
+                                        const displacementThreshold = spacing * 0.7; // tune as needed
+                                        const faceAtoms = face.indices.map(idx => corners[idx]);
+                                        const allDeparted = faceAtoms.every(atom => Math.abs(atom.z - atom.originalZ) > displacementThreshold);
+                                        if (!allDeparted) {
+                                            facesToDraw.push({
+                                                points: face.indices.map(idx => p[idx]),
+                                                depth: avgZ,
+                                                color: baseColor,
+                                                fillOpacity,
+                                                strokeOpacity
+                                            });
+                                        }
                                 }
                             });
                         }
@@ -553,7 +559,8 @@
             }
             
             // Sort faces by depth (back to front)
-            facesToDraw.sort((a, b) => a.depth - b.depth);
+                // Sort faces by depth (front to back, so closest faces are drawn last)
+                facesToDraw.sort((a, b) => b.depth - a.depth);
             
             // Draw all faces in sorted order
             facesToDraw.forEach(face => {
