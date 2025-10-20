@@ -242,7 +242,11 @@ References:
 
             <div class="control-section">
                 <div class="section-title">Visual Settings</div>
-                <div class="checkbox-row" id="showAtomsRow">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="wireFrameMode">
+                    <label for="wireFrameMode">Wire Frame Mode</label>
+                </div>
+                <div class="checkbox-row hidden" id="showAtomsRow">
                     <input type="checkbox" id="showAtoms" checked>
                     <label for="showAtoms">Show Atoms</label>
                 </div>
@@ -253,10 +257,6 @@ References:
                 <div class="checkbox-row">
                     <input type="checkbox" id="showBurgersVector" checked>
                     <label for="showBurgersVector">Show Burgers Vector</label>
-                </div>
-                <div class="checkbox-row">
-                    <input type="checkbox" id="wireFrameMode">
-                    <label for="wireFrameMode">Wire Frame Mode</label>
                 </div>
                 <div class="slider-row hidden" id="atomSizeRow">
                     <label>Atom Size:</label>
@@ -303,7 +303,6 @@ References:
         let bondWidth = 1;
         
         let shearProgress = 0;
-        let dislocationPosition = 0;
         let isAnimating = false;
         let animationPaused = false;
         let shearForceValue = 150;
@@ -313,7 +312,6 @@ References:
         
         let wireFrameMode = false;
         let showAtoms = true;
-        let fillCubes = true;
         let showShearVectors = true;
         let showBurgersVector = true;
 
@@ -737,7 +735,6 @@ References:
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // If wireFrameMode is enabled, show wireframe; otherwise show filled cubes
             const shouldShowWireframe = wireFrameMode;
             
             if (!shouldShowWireframe) {
@@ -780,9 +777,6 @@ References:
 
                 if (showAtoms) {
                     projected.forEach(({ x, y, z, scale, atom }) => {
-                        let show = true;
-                        if (!show) return;
-
                         const opacity = Math.max(0.3, 1 - (z + 400) / 900);
                         const size = atomRadius * scale;
 
@@ -847,13 +841,16 @@ References:
             // Show atom size and bond width sliders only when wireframe mode is ON
             const atomSizeRow = document.getElementById('atomSizeRow');
             const bondWidthRow = document.getElementById('bondWidthRow');
+            const showAtomsRow = document.getElementById('showAtomsRow');
             
             if (wireFrameMode) {
                 atomSizeRow.classList.remove('hidden');
                 bondWidthRow.classList.remove('hidden');
+                showAtomsRow.classList.remove('hidden');
             } else {
                 atomSizeRow.classList.add('hidden');
                 bondWidthRow.classList.add('hidden');
+                showAtomsRow.classList.add('hidden');
             }
         });
 
@@ -961,13 +958,7 @@ References:
             cameraDistance = Math.max(400, Math.min(1500, cameraDistance));
         });
 
-        // Initialize visibility based on initial fillCubes state
-        function initializeVisibility() {
-            // Atom size and bond width sliders are hidden by default (wireFrameMode is false by default)
-        }
-
         initLattice();
-        initializeVisibility();
         animate();
     </script>
 </body>
