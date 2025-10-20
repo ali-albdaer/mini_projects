@@ -472,82 +472,106 @@
             // Collect all faces with their depth for proper sorting
             const facesToDraw = [];
             
-            // Draw a cube for each unit cell
-            for (let i = 0; i < latticeSize - 1; i++) {
-                for (let j = 0; j < latticeSize - 1; j++) {
-                    for (let k = 0; k < latticeSize - 1; k++) {
-                        const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx100 = (i+1) * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx010 = i * latticeSize * latticeSize + (j+1) * latticeSize + k;
-                        const idx110 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + k;
-                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+1);
-                        const idx101 = (i+1) * latticeSize * latticeSize + j * latticeSize + (k+1);
-                        const idx011 = i * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
-                        const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
-
-                        if (idx111 < atoms.length) {
-                            const corners = [
-                                atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
-                                atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
-                            ];
-                            const p = corners.map(atom => project(atom.x, atom.y, atom.z));
-
-                            // Check if any corner is displaced
-                            const isDisplaced = corners.some(atom => atom.displaced);
-                            const baseColor = isDisplaced ? [255, 100, 100] : [100, 150, 255];
-                            
-                            const fillOpacity = 0.7;
-                            const strokeOpacity = 0.9;
-
-                            // Define all 6 faces with their corner indices (proper winding order)
-                            const faces = [
-                                { name: 'front', indices: [0, 1, 3, 2] },  // z-min
-                                { name: 'back', indices: [5, 4, 6, 7] },   // z-max
-                                { name: 'bottom', indices: [0, 4, 5, 1] }, // y-min
-                                { name: 'top', indices: [2, 3, 7, 6] },    // y-max
-                                { name: 'left', indices: [0, 2, 6, 4] },   // x-min
-                                { name: 'right', indices: [1, 5, 7, 3] }   // x-max
-                            ];
-
-                            // Calculate depth and add each face to the list
-                            faces.forEach(face => {
-                                // Calculate average Z depth for this face
-                                const avgZ = face.indices.reduce((sum, idx) => sum + p[idx].z, 0) / face.indices.length;
+            // Use the same bond threshold as in applyScrewDislocation
+            const bondThreshold = spacing * 1.1;
+            
+            // Build a map of which atoms are connected (bonded)
+            const atomConnections = new Map();
+            for (let i = 0; i < atoms.length; i++) {
+                atomConnections.set(i, new Set());
+            }
+            
+            // Populate connections based on current distances (like bonds)
+            for (let i = 0; i < atoms.length; i++) {
+                for (let j = i + 1; j < atoms.length; j++) {
+                    const dx = atoms[i].x - atoms[j].x;
+                    const dy = atoms[i].y - atoms[j].y;
+                    const dz = atoms[i].z - atoms[j].z;
+                    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    
+                    if (dist < bondThreshold) {
+                        atomConnections.get(i).add(j);
+                        atomConnections.get(j).add(i);
+                    }
+                }
+            }
+            
+            // Function to check if 4 atoms form a valid quadrilateral face
+            function isValidFace(atomIndices) {
+                // Check if all 4 edges of the quad exist
+                const edges = [
+                    [atomIndices[0], atomIndices[1]],
+                    [atomIndices[1], atomIndices[2]],
+                    [atomIndices[2], atomIndices[3]],
+                    [atomIndices[3], atomIndices[0]]
+                ];
+                
+                for (const [idx1, idx2] of edges) {
+                    if (!atomConnections.get(idx1).has(idx2)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            // Create faces dynamically based on current atom positions
+            const processedFaces = new Set();
+            
+            // Try to find cube faces by examining each atom and its neighbors
+            for (let i = 0; i < atoms.length; i++) {
+                const neighbors = Array.from(atomConnections.get(i));
+                
+                // We need at least 3 neighbors to form a face
+                if (neighbors.length < 3) continue;
+                
+                // Try to find rectangular faces (4 atoms forming a quad)
+                for (let n1 = 0; n1 < neighbors.length; n1++) {
+                    for (let n2 = n1 + 1; n2 < neighbors.length; n2++) {
+                        const j = neighbors[n1];
+                        const k = neighbors[n2];
+                        
+                        // Check if j and k share a common neighbor that completes a quad
+                        const jNeighbors = atomConnections.get(j);
+                        const kNeighbors = atomConnections.get(k);
+                        
+                        for (const l of jNeighbors) {
+                            if (l !== i && kNeighbors.has(l)) {
+                                // Found a potential quad: i-j-l-k
+                                const quad = [i, j, l, k].sort((a, b) => a - b);
+                                const faceKey = quad.join(',');
                                 
-                                // Determine if this is an outer boundary face
-                                const faceAtoms = face.indices.map(idx => corners[idx]);
-                                const isOuterFace = 
-                                    (face.name === 'left' && i === 0) ||
-                                    (face.name === 'right' && i === latticeSize - 2) ||
-                                    (face.name === 'bottom' && j === 0) ||
-                                    (face.name === 'top' && j === latticeSize - 2) ||
-                                    (face.name === 'front' && k === 0) ||
-                                    (face.name === 'back' && k === latticeSize - 2);
-                                
-                                // Calculate face normal in screen space to determine visibility
-                                const p0 = p[face.indices[0]];
-                                const p1 = p[face.indices[1]];
-                                const p3 = p[face.indices[3]];
-                                
-                                // Use two edges to calculate cross product
-                                const v1x = p1.x - p0.x;
-                                const v1y = p1.y - p0.y;
-                                const v2x = p3.x - p0.x;
-                                const v2y = p3.y - p0.y;
-                                const crossZ = v1x * v2y - v1y * v2x;
-                                
-                                // Only draw faces facing the camera (negative cross product in screen space)
-                                // Always draw outer boundary faces
-                                if (crossZ < 0 || isOuterFace) {
-                                    facesToDraw.push({
-                                        points: face.indices.map(idx => p[idx]),
-                                        depth: avgZ,
-                                        color: baseColor,
-                                        fillOpacity,
-                                        strokeOpacity
-                                    });
+                                if (!processedFaces.has(faceKey) && isValidFace([i, j, l, k])) {
+                                    processedFaces.add(faceKey);
+                                    
+                                    const corners = [atoms[i], atoms[j], atoms[l], atoms[k]];
+                                    const p = corners.map(atom => project(atom.x, atom.y, atom.z));
+                                    
+                                    // Check if any corner is displaced
+                                    const isDisplaced = corners.some(atom => atom.displaced);
+                                    const baseColor = isDisplaced ? [255, 100, 100] : [100, 150, 255];
+                                    
+                                    // Calculate average Z depth for this face
+                                    const avgZ = p.reduce((sum, proj) => sum + proj.z, 0) / p.length;
+                                    
+                                    // Calculate face normal in screen space to determine visibility
+                                    const v1x = p[1].x - p[0].x;
+                                    const v1y = p[1].y - p[0].y;
+                                    const v2x = p[3].x - p[0].x;
+                                    const v2y = p[3].y - p[0].y;
+                                    const crossZ = v1x * v2y - v1y * v2x;
+                                    
+                                    // Only draw faces facing the camera
+                                    if (crossZ < 0) {
+                                        facesToDraw.push({
+                                            points: p,
+                                            depth: avgZ,
+                                            color: baseColor,
+                                            fillOpacity: 0.7,
+                                            strokeOpacity: 0.9
+                                        });
+                                    }
                                 }
-                            });
+                            }
                         }
                     }
                 }
