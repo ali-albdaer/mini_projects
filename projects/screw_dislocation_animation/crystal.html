@@ -1,10 +1,11 @@
 <!--
-=======
 Author: Ali AL-BDAER
 Agents: Claude Sonnet 4.5, ChatGPT 5 Codex
 
 References:
 - https://dtrinkle.matse.illinois.edu/MatSE584/kap_5/backbone/r5_2_2.html
+- https://www.sciencedirect.com/topics/engineering/screw-dislocation
+- https://www.nature.com/articles/s41598-017-04257-9
 -->
 
 <!DOCTYPE html>
@@ -193,7 +194,6 @@ References:
         <div class="title">Screw Dislocation Simulation</div>
         
         <div class="control-panel">
-            <!-- Animation Controls -->
             <div class="control-section">
                 <div class="section-title">Animation</div>
                 <div class="controls">
@@ -208,12 +208,11 @@ References:
                 </div>
                 <div class="slider-row">
                     <label>Speed:</label>
-                    <input type="range" id="animSpeed" min="10" max="100" value="50">
-                    <span class="value-display" id="animSpeedValue">50</span>
+                    <input type="range" id="animSpeed" min="10" max="100" value="36">
+                    <span class="value-display" id="animSpeedValue">36</span>
                 </div>
             </div>
 
-            <!-- View Controls -->
             <div class="control-section">
                 <div class="section-title">View</div>
                 <div class="slider-row">
@@ -233,7 +232,6 @@ References:
                 </div>
             </div>
 
-            <!-- Visual Settings -->
             <div class="control-section">
                 <div class="section-title">Visual Settings</div>
                 <div class="checkbox-row">
@@ -260,13 +258,12 @@ References:
                 </div>
             </div>
 
-            <!-- Lattice Settings -->
             <div class="control-section">
                 <div class="section-title">Lattice Settings</div>
                 <div class="slider-row">
                     <label>Lattice Size:</label>
-                    <input type="range" id="latticeSize" min="6" max="16" value="7">
-                    <span class="value-display" id="latticeSizeValue">7</span>
+                    <input type="range" id="latticeSize" min="6" max="16" value="9">
+                    <span class="value-display" id="latticeSizeValue">9</span>
                 </div>
                 <div class="slider-row">
                     <label>Spacing:</label>
@@ -281,7 +278,6 @@ References:
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         
-        // Set canvas to full screen
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -289,29 +285,24 @@ References:
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Lattice parameters
-        let latticeSize = 7;
+        let latticeSize = 9;
         let spacing = 40;
         let atomRadius = 4;
         let bondWidth = 1;
-    // ...existing code...
         
-        // Animation state
         let shearProgress = 0;
         let dislocationPosition = 0;
         let isAnimating = false;
         let animationPaused = false;
         let shearForceValue = 150;
-        let animSpeed = 50;
+        let animSpeed = 36;
         let rotationX = -59;
         let rotationY = -39;
         
-        // Visual toggles
         let showBonds = true;
         let showAtoms = true;
         let fillCubes = true;
 
-        // Camera and interaction
         let cameraDistance = 800;
         let isDragging = false;
         let lastMouseX = 0;
@@ -332,7 +323,6 @@ References:
         let atoms = [];
         let bonds = [];
 
-        // Initialize lattice
         function initLattice() {
             atoms = [];
             bonds = [];
@@ -350,7 +340,6 @@ References:
                 }
             }
 
-            // Create bonds
             atoms.forEach((atom, idx) => {
                 atoms.forEach((other, otherIdx) => {
                     if (idx < otherIdx) {
@@ -367,22 +356,17 @@ References:
             });
         }
 
-        // Apply screw dislocation based on linear elasticity theory
-        // Reference: https://dtrinkle.matse.illinois.edu/MatSE584/kap_5/backbone/r5_2_2.html
         function applyScrewDislocation(progress) {
-            const burgers = spacing * 0.5; // Burgers vector magnitude
-            const coreRadius = burgers * 2.0; // Core radius r₀ ≈ 1-4b (we use 2b)
+            const burgers = spacing * 0.5;
+            const coreRadius = burgers * 2.0;
             
             atoms.forEach(atom => {
                 const x = atom.originalX;
                 const y = atom.originalY;
                 const z = atom.originalZ;
                 
-                // Calculate distance from dislocation line (along z-axis at center)
                 const r = Math.sqrt(x * x + y * y);
                 
-                // CORE REGION: Linear elasticity theory breaks down in the core
-                // For r < r₀, we exclude these atoms or handle them separately
                 if (r < coreRadius) {
                     atom.x = x;
                     atom.y = y;
@@ -391,46 +375,25 @@ References:
                     return;
                 }
                 
-                // Calculate angle around dislocation line (-π to π)
                 const theta = Math.atan2(y, x);
                 
-                // ============================================
-                // SCREW DISLOCATION - Linear Elasticity Theory
-                // ============================================
-                // For a screw dislocation:
-                // 1. u_x = 0 (no displacement in x-direction)
-                // 2. u_y = 0 (no displacement in y-direction)
-                // 3. u_z = (b / 2π) × θ (displacement parallel to dislocation line)
-                //
-                // This formula is valid for r > r₀ (outside core region)
-                // The displacement varies linearly with angle θ, NOT with distance r
-                // Each full rotation (2π) corresponds to one Burgers vector displacement
-                
-                // Calculate the displacement using the exact formula from elasticity theory
-                // u_z = (b / 2π) × θ
                 const baseDisplacement = (theta / (2 * Math.PI)) * burgers;
                 
-                // Apply shear force multiplier (user control)
                 const forceMultiplier = shearForceValue / 50;
                 
-                // Smooth animation progress (ease in-out for visual appeal)
                 const smoothProgress = progress < 0.5 
                     ? 2 * progress * progress 
                     : 1 - Math.pow(-2 * progress + 2, 2) / 2;
                 
-                // Final displacement in z-direction
                 const u_z = baseDisplacement * smoothProgress * forceMultiplier;
                 
-                // Apply displacements according to screw dislocation theory
-                atom.x = x;  // u_x = 0
-                atom.y = y;  // u_y = 0
-                atom.z = z + u_z;  // u_z = (b/2π)×θ
+                atom.x = x;
+                atom.y = y;
+                atom.z = z + u_z;
                 
-                // Mark as displaced if displacement is significant
                 atom.displaced = Math.abs(u_z) > 0.02;
             });
 
-            // Recompute bonds based on current atom positions and distance
             bonds = [];
             const bondThreshold = spacing * 1.1;
             for (let i = 0; i < atoms.length; i++) {
@@ -446,23 +409,19 @@ References:
             }
         }
 
-        // 3D rotation
         function rotate3D(x, y, z, angleX, angleY) {
             const radX = angleX * Math.PI / 180;
             const radY = angleY * Math.PI / 180;
             
-            // Rotate around X axis
             let y1 = y * Math.cos(radX) - z * Math.sin(radX);
             let z1 = y * Math.sin(radX) + z * Math.cos(radX);
             
-            // Rotate around Y axis
             let x2 = x * Math.cos(radY) + z1 * Math.sin(radY);
             let z2 = -x * Math.sin(radY) + z1 * Math.cos(radY);
             
             return { x: x2, y: y1, z: z2 };
         }
 
-        // Project 3D to 2D
         function project(x, y, z) {
             const rotated = rotate3D(x, y, z, rotationX, rotationY);
             const scale = cameraDistance / (cameraDistance + rotated.z);
@@ -474,23 +433,18 @@ References:
             };
         }
 
-        // Draw simple cubes for cube mode
         function drawSimpleCubes() {
             ctx.save();
             
-            // Collect all faces with their depth for proper sorting
             const facesToDraw = [];
             
-            // Use the same bond threshold as in applyScrewDislocation
             const bondThreshold = spacing * 1.1;
             
-            // Build a map of which atoms are connected (bonded)
             const atomConnections = new Map();
             for (let i = 0; i < atoms.length; i++) {
                 atomConnections.set(i, new Set());
             }
             
-            // Populate connections based on current distances (like bonds)
             for (let i = 0; i < atoms.length; i++) {
                 for (let j = i + 1; j < atoms.length; j++) {
                     const dx = atoms[i].x - atoms[j].x;
@@ -505,20 +459,17 @@ References:
                 }
             }
             
-            // Helper function to check if 4 atoms form a valid quad cycle
             function formsValidQuad(a, b, c, d) {
                 return atomConnections.get(a).has(b) &&
                        atomConnections.get(b).has(c) &&
                        atomConnections.get(c).has(d) &&
                        atomConnections.get(d).has(a) &&
-                       !atomConnections.get(a).has(c) && // diagonals should not be connected
+                       !atomConnections.get(a).has(c) &&
                        !atomConnections.get(b).has(d);
             }
             
-            // Create faces dynamically based on current atom positions
             const processedFaces = new Set();
             
-            // PASS 1: Check faces from original lattice structure
             for (let i = 0; i < latticeSize - 1; i++) {
                 for (let j = 0; j < latticeSize - 1; j++) {
                     for (let k = 0; k < latticeSize - 1; k++) {
@@ -532,34 +483,27 @@ References:
                         const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
 
                         if (idx111 < atoms.length) {
-                            // Define all 6 faces of the cube with their corner indices
                             const faces = [
-                                [idx000, idx100, idx110, idx010],  // front (z-min)
-                                [idx001, idx011, idx111, idx101],  // back (z-max)
-                                [idx000, idx010, idx011, idx001],  // left (x-min)
-                                [idx100, idx101, idx111, idx110],  // right (x-max)
-                                [idx000, idx001, idx101, idx100],  // bottom (y-min)
-                                [idx010, idx110, idx111, idx011]   // top (y-max)
+                                [idx000, idx100, idx110, idx010],
+                                [idx001, idx011, idx111, idx101],
+                                [idx000, idx010, idx011, idx001],
+                                [idx100, idx101, idx111, idx110],
+                                [idx000, idx001, idx101, idx100],
+                                [idx010, idx110, idx111, idx011]
                             ];
                             
-                            // Check each face
                             faces.forEach(faceIndices => {
-                                // Check if all 4 edges of this face exist (are bonded)
                                 if (formsValidQuad(faceIndices[0], faceIndices[1], faceIndices[2], faceIndices[3])) {
-                                    // Create unique key
                                     const faceKey = [...faceIndices].sort((a, b) => a - b).join(',');
                                     if (processedFaces.has(faceKey)) return;
                                     processedFaces.add(faceKey);
                                     
-                                    // Get the atoms and project them
                                     const corners = faceIndices.map(idx => atoms[idx]);
                                     const p = corners.map(atom => project(atom.x, atom.y, atom.z));
                                     
-                                    // Check if any corner is displaced
                                     const isDisplaced = corners.some(atom => atom.displaced);
                                     const baseColor = isDisplaced ? [255, 100, 100] : [100, 150, 255];
                                     
-                                    // Calculate average Z depth for this face
                                     const avgZ = p.reduce((sum, proj) => sum + proj.z, 0) / p.length;
                                     
                                     facesToDraw.push({
@@ -576,8 +520,6 @@ References:
                 }
             }
             
-            // PASS 2: Find NEW faces by searching through connected atoms
-            // This finds faces that form due to stretching
             for (let a = 0; a < atoms.length; a++) {
                 const neighborsA = Array.from(atomConnections.get(a));
                 if (neighborsA.length < 2) continue;
@@ -589,12 +531,10 @@ References:
                     for (let j = i + 1; j < neighborsA.length; j++) {
                         const d = neighborsA[j];
                         
-                        // Find common neighbor of b and d (forms a quad a-b-c-d)
                         const neighborsD = atomConnections.get(d);
                         
                         for (const c of neighborsB) {
                             if (c > a && neighborsD.has(c) && !atomConnections.get(a).has(c)) {
-                                // Found a valid quad: a-b-c-d
                                 const faceKey = [a, b, c, d].sort((x, y) => x - y).join(',');
                                 
                                 if (!processedFaces.has(faceKey) && formsValidQuad(a, b, c, d)) {
@@ -622,11 +562,8 @@ References:
                 }
             }
             
-            // Sort faces by depth (back to front)
-                // Sort faces by depth (front to back, so closest faces are drawn last)
-                facesToDraw.sort((a, b) => b.depth - a.depth);
+            facesToDraw.sort((a, b) => b.depth - a.depth);
             
-            // Draw all faces in sorted order
             facesToDraw.forEach(face => {
                 ctx.lineWidth = 1.5;
                 ctx.strokeStyle = `rgba(50,50,50,${face.strokeOpacity})`;
@@ -645,15 +582,13 @@ References:
             ctx.restore();
         }
 
-
-        // Draw helical path and ramp surface (optimized)
         function drawHelicalPath(progress) {
             if (progress < 0.1) return;
             
             ctx.save();
             
             const numTurns = 2.5;
-            const pointsPerTurn = 40; // Reduced from 60 for better performance
+            const pointsPerTurn = 40;
             const totalPoints = numTurns * pointsPerTurn;
             const innerRadius = spacing * 1.5;
             const outerRadius = spacing * 3;
@@ -662,7 +597,6 @@ References:
             
             const helixPoints = [];
             
-            // Generate helix points on outer edge
             for (let i = 0; i <= totalPoints * progress; i++) {
                 const t = i / pointsPerTurn;
                 const angle = t * 2 * Math.PI;
@@ -673,18 +607,15 @@ References:
                 helixPoints.push({ x, y, z, angle, t });
             }
             
-            // Draw the ramp surface connecting inner and outer helix (simplified)
             if (helixPoints.length > 5) {
                 ctx.fillStyle = 'rgba(255, 215, 0, 0.18)';
                 ctx.strokeStyle = 'rgba(255, 215, 0, 0.35)';
                 ctx.lineWidth = 1.5;
                 
-                // Draw fewer surface quads for performance
                 for (let i = 0; i < helixPoints.length - 1; i += 5) {
                     const p1 = helixPoints[i];
                     const p2 = helixPoints[Math.min(i + 5, helixPoints.length - 1)];
                     
-                    // Create quad from inner to outer radius
                     const innerX1 = innerRadius * Math.cos(p1.angle);
                     const innerY1 = innerRadius * Math.sin(p1.angle);
                     const innerX2 = innerRadius * Math.cos(p2.angle);
@@ -706,7 +637,6 @@ References:
                 }
             }
             
-            // Draw the outer helix edge (bright, no expensive shadows)
             const projectedHelix = helixPoints.map(p => project(p.x, p.y, p.z));
             
             ctx.lineWidth = 6;
@@ -721,7 +651,6 @@ References:
             }
             ctx.stroke();
             
-            // Draw inner helix edge
             ctx.lineWidth = 4;
             ctx.strokeStyle = 'rgba(255, 200, 50, 0.85)';
             
@@ -739,13 +668,11 @@ References:
             });
             ctx.stroke();
             
-            // Draw glowing markers along helix (reduced frequency)
             ctx.shadowBlur = 8;
             projectedHelix.forEach((p, i) => {
-                if (i % 10 === 0) { // Less frequent markers
+                if (i % 10 === 0) {
                     const size = 4 * p.scale;
                     
-                    // Single bright point (removed outer glow for performance)
                     ctx.fillStyle = 'rgba(255, 255, 150, 0.9)';
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
@@ -753,8 +680,7 @@ References:
                 }
             });
             
-            // Draw dislocation line (central axis) with labels - EXTENDED for visibility
-            const extensionFactor = 1.3; // Extend 30% beyond the lattice
+            const extensionFactor = 1.3;
             const extendedHeight = height * extensionFactor;
             const extendedOffset = -extendedHeight / 2;
             
@@ -772,7 +698,6 @@ References:
             ctx.stroke();
             ctx.setLineDash([]);
             
-            // Draw arrows showing displacement direction
             if (progress > 0.3) {
                 ctx.shadowBlur = 0;
                 const arrowZ = centerOffset + height * 0.5;
@@ -789,7 +714,6 @@ References:
                 }
             }
             
-            // Labels
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.font = 'bold 13px Arial';
@@ -797,7 +721,6 @@ References:
             ctx.fillText('Burgers Vector ⟂', topPoint.x, topPoint.y - 25);
             ctx.fillText('(Dislocation Line)', topPoint.x, topPoint.y - 10);
             
-            // Add "spiral ramp" label
             if (progress > 0.5 && helixPoints.length > 0) {
                 const midPoint = helixPoints[Math.floor(helixPoints.length / 2)];
                 const labelProj = project(midPoint.x * 1.3, midPoint.y * 1.3, midPoint.z);
@@ -809,7 +732,6 @@ References:
             ctx.shadowBlur = 0;
             ctx.restore();
         }
-
 
         function drawArrow(x1, y1, x2, y2, color, width) {
             const headlen = 15;
@@ -833,31 +755,24 @@ References:
             ctx.fill();
         }
 
-        // Render scene
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // If fill cubes mode is enabled, draw filled cubes
             if (fillCubes) {
                 drawSimpleCubes();
-                return; // Skip drawing atoms and bonds
+                return;
             }
             
-            // Only draw bonds and atoms if needed
             if (showBonds || showAtoms) {
-                // Project all atoms once
                 const projected = atoms.map(atom => {
                     const p = project(atom.x, atom.y, atom.z);
                     return { ...p, atom };
                 });
 
-                // Sort by depth for proper rendering
                 projected.sort((a, b) => a.z - b.z);
 
-                // Draw bonds
                 if (showBonds) {
-                    ctx.lineWidth = bondWidth + 1.2; // Make bonds more visible
-                    // Draw all bonds for full lattice connectivity
+                    ctx.lineWidth = bondWidth + 1.2;
                     bonds.forEach(([idx1, idx2]) => {
                         const a1 = atoms[idx1];
                         const a2 = atoms[idx2];
@@ -873,18 +788,14 @@ References:
                     });
                 }
 
-                // Draw atoms (no shadows for performance)
                 if (showAtoms) {
                     projected.forEach(({ x, y, z, scale, atom }) => {
-                        // Only show atoms on the outer surface if cubes are fully opaque
                         let show = true;
-                        // ...existing code...
                         if (!show) return;
 
                         const opacity = Math.max(0.3, 1 - (z + 400) / 900);
                         const size = atomRadius * scale;
 
-                        // Color based on displacement with better visibility
                         if (atom.displaced) {
                             const intensity = Math.min(255, 160 + Math.abs(atom.z - atom.originalZ) * 2.5);
                             ctx.fillStyle = `rgba(${intensity}, 100, 100, ${opacity})`;
@@ -896,7 +807,6 @@ References:
                         ctx.arc(x, y, size, 0, Math.PI * 2);
                         ctx.fill();
 
-                        // Bright highlight effect
                         if (size > 2) {
                             ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
                             ctx.beginPath();
@@ -908,7 +818,6 @@ References:
             }
         }
 
-        // Animation loop
         function animate() {
             if (isAnimating && !animationPaused) {
                 shearProgress += 0.01 * (animSpeed / 50);
@@ -925,7 +834,6 @@ References:
             requestAnimationFrame(animate);
         }
 
-        // Event listeners
         document.getElementById('applyShear').addEventListener('click', () => {
             isAnimating = true;
             animationPaused = false;
@@ -946,7 +854,6 @@ References:
             e.target.textContent = animationPaused ? 'Resume' : 'Pause';
         });
 
-        // Checkboxes
         document.getElementById('showBonds').addEventListener('change', (e) => {
             showBonds = e.target.checked;
         });
@@ -959,7 +866,6 @@ References:
             fillCubes = e.target.checked;
         });
 
-        // Sliders
         document.getElementById('shearForce').addEventListener('input', (e) => {
             shearForceValue = parseInt(e.target.value);
             document.getElementById('shearForceValue').textContent = shearForceValue;
@@ -998,8 +904,6 @@ References:
             document.getElementById('bondWidthValue').textContent = bondWidth;
         });
 
-        // ...existing code...
-
         document.getElementById('latticeSize').addEventListener('input', (e) => {
             latticeSize = parseInt(e.target.value);
             document.getElementById('latticeSizeValue').textContent = latticeSize;
@@ -1016,7 +920,6 @@ References:
             isAnimating = false;
         });
 
-        // Mouse interaction for rotation
         canvas.addEventListener('mousedown', (e) => {
             isDragging = true;
             lastMouseX = e.clientX;
@@ -1031,7 +934,6 @@ References:
                 rotationY += deltaX * 0.5;
                 rotationX += deltaY * 0.5;
                 
-                // Update slider values
                 document.getElementById('rotationX').value = rotationX;
                 document.getElementById('rotationY').value = rotationY;
                 document.getElementById('rotationXValue').textContent = Math.round(rotationX) + '°';
@@ -1050,14 +952,12 @@ References:
             isDragging = false;
         });
 
-        // Mouse wheel for zoom
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             cameraDistance += e.deltaY * 0.5;
             cameraDistance = Math.max(400, Math.min(1500, cameraDistance));
         });
 
-        // Initialize and start
         initLattice();
         animate();
     </script>
