@@ -228,6 +228,10 @@
             <div class="control-section">
                 <div class="section-title">Visual Settings</div>
                 <div class="checkbox-row">
+                    <input type="checkbox" id="cubeMode">
+                    <label for="cubeMode">Cube Mode (Simple Cubes Only)</label>
+                </div>
+                <div class="checkbox-row">
                     <input type="checkbox" id="showSolid">
                     <label for="showSolid">Show Solid Cubes</label>
                 </div>
@@ -306,6 +310,7 @@
         let showSolid = false; // Start with solid cubes OFF for better performance
         let showBonds = true;
         let showAtoms = true;
+        let cubeMode = false; // Cube mode: show only simple cubes, no atoms/bonds
 
         // Camera and interaction
         let cameraDistance = 800;
@@ -468,6 +473,105 @@
                 z: rotated.z,
                 scale: scale
             };
+        }
+
+        // Draw simple cubes for cube mode
+        function drawSimpleCubes() {
+            ctx.save();
+            
+            // Collect all faces with their depth for proper sorting
+            const facesToDraw = [];
+            
+            // Draw a cube for each unit cell
+            for (let i = 0; i < latticeSize - 1; i++) {
+                for (let j = 0; j < latticeSize - 1; j++) {
+                    for (let k = 0; k < latticeSize - 1; k++) {
+                        const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx100 = (i+1) * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx010 = i * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx110 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx101 = (i+1) * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx011 = i * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+                        const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+
+                        if (idx111 < atoms.length) {
+                            const corners = [
+                                atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
+                                atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
+                            ];
+                            const p = corners.map(atom => project(atom.x, atom.y, atom.z));
+
+                            // Check if any corner is displaced
+                            const isDisplaced = corners.some(atom => atom.displaced);
+                            const baseColor = isDisplaced ? [255, 100, 100] : [100, 150, 255];
+                            
+                            const fillOpacity = 0.7;
+                            const strokeOpacity = 0.9;
+
+                            // Define all 6 faces with their corner indices (proper winding order)
+                            const faces = [
+                                { name: 'front', indices: [0, 1, 3, 2] },  // z-min
+                                { name: 'back', indices: [5, 4, 6, 7] },   // z-max
+                                { name: 'bottom', indices: [0, 4, 5, 1] }, // y-min
+                                { name: 'top', indices: [2, 3, 7, 6] },    // y-max
+                                { name: 'left', indices: [0, 2, 6, 4] },   // x-min
+                                { name: 'right', indices: [1, 5, 7, 3] }   // x-max
+                            ];
+
+                            // Calculate depth and add each face to the list
+                            faces.forEach(face => {
+                                // Calculate average Z depth for this face
+                                const avgZ = face.indices.reduce((sum, idx) => sum + p[idx].z, 0) / face.indices.length;
+                                
+                                // Calculate face normal in screen space to determine visibility
+                                const p0 = p[face.indices[0]];
+                                const p1 = p[face.indices[1]];
+                                const p3 = p[face.indices[3]];
+                                
+                                // Use two edges to calculate cross product
+                                const v1x = p1.x - p0.x;
+                                const v1y = p1.y - p0.y;
+                                const v2x = p3.x - p0.x;
+                                const v2y = p3.y - p0.y;
+                                const crossZ = v1x * v2y - v1y * v2x;
+                                
+                                // Only draw faces facing the camera (negative cross product in screen space)
+                                if (crossZ < 0) {
+                                    facesToDraw.push({
+                                        points: face.indices.map(idx => p[idx]),
+                                        depth: avgZ,
+                                        color: baseColor,
+                                        fillOpacity,
+                                        strokeOpacity
+                                    });
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Sort faces by depth (back to front)
+            facesToDraw.sort((a, b) => a.depth - b.depth);
+            
+            // Draw all faces in sorted order
+            facesToDraw.forEach(face => {
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = `rgba(50,50,50,${face.strokeOpacity})`;
+                ctx.fillStyle = `rgba(${face.color[0]},${face.color[1]},${face.color[2]},${face.fillOpacity})`;
+                
+                ctx.beginPath();
+                ctx.moveTo(face.points[0].x, face.points[0].y);
+                for (let i = 1; i < face.points.length; i++) {
+                    ctx.lineTo(face.points[i].x, face.points[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            });
+            
+            ctx.restore();
         }
 
         // Draw cubic/solid structure - SIMPLIFIED VERSION
@@ -792,6 +896,11 @@
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // If cube mode is enabled, only draw simple cubes
+            if (cubeMode) {
+                drawSimpleCubes();
+                return;
+            }
             
             // Draw solid structure (cubes) - this is expensive, so optimize
             drawSolidStructure();
@@ -911,6 +1020,25 @@
         });
 
         // Checkboxes
+        document.getElementById('cubeMode').addEventListener('change', (e) => {
+            cubeMode = e.target.checked;
+            // Optionally disable other visual options when cube mode is on
+            if (cubeMode) {
+                showSolid = false;
+                showBonds = false;
+                showAtoms = false;
+                document.getElementById('showSolid').checked = false;
+                document.getElementById('showBonds').checked = false;
+                document.getElementById('showAtoms').checked = false;
+            } else {
+                // Re-enable default view
+                showBonds = true;
+                showAtoms = true;
+                document.getElementById('showBonds').checked = true;
+                document.getElementById('showAtoms').checked = true;
+            }
+        });
+
         document.getElementById('showSolid').addEventListener('change', (e) => {
             showSolid = e.target.checked;
         });
