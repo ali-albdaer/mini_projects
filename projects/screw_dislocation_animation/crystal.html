@@ -228,10 +228,6 @@
             <div class="control-section">
                 <div class="section-title">Visual Settings</div>
                 <div class="checkbox-row">
-                    <input type="checkbox" id="showHelix" checked>
-                    <label for="showHelix">Show Spiral Helix</label>
-                </div>
-                <div class="checkbox-row">
                     <input type="checkbox" id="showSolid">
                     <label for="showSolid">Show Solid Cubes</label>
                 </div>
@@ -307,7 +303,6 @@
         let rotationY = 30;
         
         // Visual toggles
-        let showHelix = true;
         let showSolid = false; // Start with solid cubes OFF for better performance
         let showBonds = true;
         let showAtoms = true;
@@ -765,48 +760,50 @@
             ctx.restore();
         }
 
-        // Draw shear force arrows - showing the rotational/torsional shear pattern
+        // Draw shear force arrows - showing shear vectors on outer surfaces
         function drawShearForces(progress) {
             if (progress < 0.1) return;
             
             ctx.save();
-            ctx.globalAlpha = Math.min(progress * 2, 0.7);
+            ctx.globalAlpha = Math.min(progress * 2, 0.8);
             
-            // For a screw dislocation, shear stress acts tangentially around the dislocation line
-            // σ_θz acts parallel to z-axis in radial planes (torque-like pattern)
+            // For a screw dislocation, shear stress acts parallel to the dislocation line
+            // on the outer surfaces. The direction depends on the angular position around the line.
             
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = 120;
-            const arrowLength = 70;
+            const height = spacing * (latticeSize - 1);
+            const centerOffset = -height / 2;
+            const latticeRadius = spacing * (latticeSize - 1) / 2;
+            const arrowLength = spacing * 2.5;
             
-            // Draw circular arrows showing rotational shear around the dislocation line
-            const numArrows = 8;
-            for (let i = 0; i < numArrows; i++) {
-                const angle = (i / numArrows) * 2 * Math.PI;
-                const x = centerX + radius * Math.cos(angle);
-                const y = centerY + radius * Math.sin(angle);
+            // Define positions on the 4 outer faces of the lattice (front, back, left, right)
+            const positions = [
+                // Front face (+y direction) - arrow points UP (+z)
+                { x: 0, y: latticeRadius, z: centerOffset, dir: 1, label: 'τ_yz' },
+                // Back face (-y direction) - arrow points DOWN (-z)
+                { x: 0, y: -latticeRadius, z: centerOffset, dir: -1, label: 'τ_yz' },
+                // Right face (+x direction) - arrow points UP (+z)
+                { x: latticeRadius, y: 0, z: centerOffset, dir: 1, label: 'τ_xz' },
+                // Left face (-x direction) - arrow points DOWN (-z)
+                { x: -latticeRadius, y: 0, z: centerOffset, dir: -1, label: 'τ_xz' }
+            ];
+            
+            positions.forEach(pos => {
+                // Starting point of arrow
+                const p1 = project(pos.x, pos.y, pos.z);
+                // Ending point (parallel to z-axis, direction based on angular position)
+                const p2 = project(pos.x, pos.y, pos.z + arrowLength * pos.dir);
                 
-                // Tangential direction (perpendicular to radial)
-                const tangentAngle = angle + Math.PI / 2;
-                const x2 = x + arrowLength * Math.cos(tangentAngle);
-                const y2 = y + arrowLength * Math.sin(tangentAngle);
+                // Color based on direction
+                const color = pos.dir > 0 ? 'rgba(255, 100, 100, 0.9)' : 'rgba(100, 150, 255, 0.9)';
                 
-                // Color gradient from red to cyan around the circle
-                const hue = (i / numArrows) * 360;
-                const color = `hsl(${hue}, 80%, 60%)`;
+                drawArrow(p1.x, p1.y, p2.x, p2.y, color, 4);
                 
-                drawArrow(x, y, x2, y2, color, 3);
-            }
-            
-            // Add label
-            ctx.globalAlpha = 0.9;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.font = 'bold 14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('Shear Stress (τ_θz)', centerX, centerY - radius - 20);
-            ctx.font = '12px Arial';
-            ctx.fillText('Rotational Pattern', centerX, centerY - radius - 5);
+                // Add label near the arrow
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(pos.label, p1.x, p1.y - 15);
+            });
             
             ctx.restore();
         }
@@ -842,11 +839,6 @@
             
             // Draw solid structure (cubes) - this is expensive, so optimize
             drawSolidStructure();
-            
-            // Draw helical path if enabled
-            if (showHelix) {
-                drawHelicalPath(shearProgress);
-            }
             
             // Only draw bonds and atoms if needed
             if (showBonds || showAtoms) {
@@ -976,10 +968,6 @@
         });
 
         // Checkboxes
-        document.getElementById('showHelix').addEventListener('change', (e) => {
-            showHelix = e.target.checked;
-        });
-
         document.getElementById('showSolid').addEventListener('change', (e) => {
             showSolid = e.target.checked;
         });
