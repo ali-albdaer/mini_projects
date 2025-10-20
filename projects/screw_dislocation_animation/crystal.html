@@ -194,7 +194,7 @@
                 </div>
                 <div class="slider-row">
                     <label>Shear Force:</label>
-                    <input type="range" id="shearForce" min="0" max="100" value="50">
+                    <input type="range" id="shearForce" min="0" max="400" value="50">
                     <span class="value-display" id="shearForceValue">50</span>
                 </div>
                 <div class="slider-row">
@@ -209,13 +209,13 @@
                 <div class="section-title">View</div>
                 <div class="slider-row">
                     <label>Rotation X:</label>
-                    <input type="range" id="rotationX" min="-180" max="180" value="20">
-                    <span class="value-display" id="rotationXValue">20°</span>
+                    <input type="range" id="rotationX" min="-180" max="180" value="-60">
+                    <span class="value-display" id="rotationXValue">-60°</span>
                 </div>
                 <div class="slider-row">
                     <label>Rotation Y:</label>
-                    <input type="range" id="rotationY" min="-180" max="180" value="30">
-                    <span class="value-display" id="rotationYValue">30°</span>
+                    <input type="range" id="rotationY" min="-180" max="180" value="-39">
+                    <span class="value-display" id="rotationYValue">-39°</span>
                 </div>
                 <div class="slider-row">
                     <label>Zoom:</label>
@@ -261,8 +261,8 @@
                 <div class="section-title">Lattice Settings</div>
                 <div class="slider-row">
                     <label>Lattice Size:</label>
-                    <input type="range" id="latticeSize" min="6" max="16" value="12">
-                    <span class="value-display" id="latticeSizeValue">12</span>
+                    <input type="range" id="latticeSize" min="6" max="16" value="7">
+                    <span class="value-display" id="latticeSizeValue">7</span>
                 </div>
                 <div class="slider-row">
                     <label>Spacing:</label>
@@ -286,7 +286,7 @@
         window.addEventListener('resize', resizeCanvas);
 
         // Lattice parameters
-        let latticeSize = 12;
+        let latticeSize = 7;
         let spacing = 40;
         let atomRadius = 4;
         let bondWidth = 1;
@@ -299,8 +299,8 @@
         let animationPaused = false;
         let shearForceValue = 50;
         let animSpeed = 50;
-        let rotationX = 20;
-        let rotationY = 30;
+        let rotationX = -60;
+        let rotationY = -39;
         
         // Visual toggles
         let showSolid = false; // Start with solid cubes OFF for better performance
@@ -459,140 +459,130 @@
         // Just draw cubes as simple 3D boxes without complex orientation culling
         function drawSolidStructure() {
             if (!showSolid) return;
-            
             ctx.save();
-            
-            // Only draw a subset of cubes for performance
-            const step = latticeSize > 10 ? 2 : 1;
-            const cubes = [];
-            
-            for (let i = 0; i < latticeSize - 1; i += step) {
-                for (let j = 0; j < latticeSize - 1; j += step) {
-                    for (let k = 0; k < latticeSize - 1; k += step) {
+
+            // Only draw faces for the true outer surfaces (and optionally one layer below)
+            const layers = [0, 1, latticeSize - 2, latticeSize - 1]; // outermost and one layer in
+            const isOuter = idx => (idx === 0 || idx === latticeSize - 1);
+            const isNearOuter = idx => (idx === 1 || idx === latticeSize - 2);
+
+            // Draw faces for each direction
+            for (let i = 0; i < latticeSize - 1; i++) {
+                for (let j = 0; j < latticeSize - 1; j++) {
+                    for (let k = 0; k < latticeSize - 1; k++) {
+                        // Only draw faces on the outer surfaces (and optionally one layer below)
+                        // For each face, check if it's on the outer boundary
                         const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx100 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx010 = i * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + k;
-                        const idx110 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + k;
-                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + Math.min((k+step), latticeSize-1);
-                        const idx101 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + j * latticeSize + Math.min((k+step), latticeSize-1);
-                        const idx011 = i * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + Math.min((k+step), latticeSize-1);
-                        const idx111 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + Math.min((k+step), latticeSize-1);
-                        
+                        const idx100 = (i+1) * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx010 = i * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx110 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + k;
+                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx101 = (i+1) * latticeSize * latticeSize + j * latticeSize + (k+1);
+                        const idx011 = i * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+                        const idx111 = (i+1) * latticeSize * latticeSize + (j+1) * latticeSize + (k+1);
+
                         if (idx111 < atoms.length) {
                             const corners = [
                                 atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
                                 atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
                             ];
-                            
-                            // Calculate center Z for depth sorting
-                            let centerZ = 0;
-                            for (let ci = 0; ci < 8; ci++) {
-                                centerZ += corners[ci].z;
+                            const p = corners.map(atom => project(atom.x, atom.y, atom.z));
+
+                            // Color based on displacement
+                            const baseColor = corners.some(atom => atom.displaced)
+                                ? [255, 100, 100]
+                                : [100, 150, 255];
+
+                            // Opacity logic
+                            const opacityMultiplier = cubeOpacity / 100;
+                            let fillOpacity = opacityMultiplier;
+                            let strokeOpacity = opacityMultiplier;
+                            if (cubeOpacity === 100) {
+                                fillOpacity = 1.0;
+                                strokeOpacity = 1.0;
                             }
-                            centerZ /= 8;
-                            
-                            const displaced = corners.some(atom => atom.displaced);
-                            
-                            cubes.push({ corners, centerZ, displaced });
+
+                            // Stronger/darker edges for boundaries
+                            ctx.lineWidth = 2.2;
+                            ctx.strokeStyle = `rgba(30,30,30,${strokeOpacity})`;
+
+                            // Draw only the faces that are on the outer boundary (or one layer in)
+                            // Front face (z = 0)
+                            if (k === 0 || k === 1) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[0].x, p[0].y);
+                                ctx.lineTo(p[1].x, p[1].y);
+                                ctx.lineTo(p[3].x, p[3].y);
+                                ctx.lineTo(p[2].x, p[2].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
+                            // Back face (z = max)
+                            if (k === latticeSize - 2 || k === latticeSize - 3) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[4].x, p[4].y);
+                                ctx.lineTo(p[5].x, p[5].y);
+                                ctx.lineTo(p[7].x, p[7].y);
+                                ctx.lineTo(p[6].x, p[6].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
+                            // Bottom face (y = 0)
+                            if (j === 0 || j === 1) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[0].x, p[0].y);
+                                ctx.lineTo(p[1].x, p[1].y);
+                                ctx.lineTo(p[5].x, p[5].y);
+                                ctx.lineTo(p[4].x, p[4].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
+                            // Top face (y = max)
+                            if (j === latticeSize - 2 || j === latticeSize - 3) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[2].x, p[2].y);
+                                ctx.lineTo(p[3].x, p[3].y);
+                                ctx.lineTo(p[7].x, p[7].y);
+                                ctx.lineTo(p[6].x, p[6].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
+                            // Left face (x = 0)
+                            if (i === 0 || i === 1) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[0].x, p[0].y);
+                                ctx.lineTo(p[2].x, p[2].y);
+                                ctx.lineTo(p[6].x, p[6].y);
+                                ctx.lineTo(p[4].x, p[4].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
+                            // Right face (x = max)
+                            if (i === latticeSize - 2 || i === latticeSize - 3) {
+                                ctx.fillStyle = `rgba(${baseColor[0]},${baseColor[1]},${baseColor[2]},${fillOpacity})`;
+                                ctx.beginPath();
+                                ctx.moveTo(p[1].x, p[1].y);
+                                ctx.lineTo(p[5].x, p[5].y);
+                                ctx.lineTo(p[7].x, p[7].y);
+                                ctx.lineTo(p[3].x, p[3].y);
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.stroke();
+                            }
                         }
                     }
                 }
             }
-            
-            // Sort cubes by depth (back to front for proper transparency)
-            cubes.sort((a, b) => a.centerZ - b.centerZ);
-            
-            // Draw each cube - SIMPLE approach: draw all 6 faces
-            cubes.forEach(cube => {
-                const c = cube.corners;
-                
-                // Project all 8 corners once
-                const p = c.map(atom => project(atom.x, atom.y, atom.z));
-                
-                // Define the 6 faces with their vertices (in consistent winding order)
-                // Front-bottom-left is c[0], going through cube to back-top-right c[7]
-                const faces = [
-                    // Front face (z = front)
-                    { verts: [p[0], p[1], p[3], p[2]], name: 'front', brightness: 1.0 },
-                    // Back face (z = back)
-                    { verts: [p[4], p[6], p[7], p[5]], name: 'back', brightness: 0.5 },
-                    // Bottom face (y = bottom)
-                    { verts: [p[0], p[4], p[5], p[1]], name: 'bottom', brightness: 0.7 },
-                    // Top face (y = top)
-                    { verts: [p[2], p[3], p[7], p[6]], name: 'top', brightness: 0.9 },
-                    // Left face (x = left)
-                    { verts: [p[0], p[2], p[6], p[4]], name: 'left', brightness: 0.6 },
-                    // Right face (x = right)
-                    { verts: [p[1], p[5], p[7], p[3]], name: 'right', brightness: 0.8 }
-                ];
-                
-                // Base color based on displacement
-                const baseColor = cube.displaced ? [255, 100, 100] : [100, 150, 255];
-                
-                // Collect visible faces with their depth for sorting
-                const visibleFaces = [];
-                
-                faces.forEach(face => {
-                    // Calculate if face is front-facing using cross product in 2D screen space
-                    const v1x = face.verts[1].x - face.verts[0].x;
-                    const v1y = face.verts[1].y - face.verts[0].y;
-                    const v2x = face.verts[2].x - face.verts[0].x;
-                    const v2y = face.verts[2].y - face.verts[0].y;
-                    const cross = v1x * v2y - v1y * v2x;
-                    
-                    // Only include front-facing faces (cross product > 0)
-                    if (cross > 0) {
-                        // Calculate average Z depth for this face
-                        const avgZ = (face.verts[0].z + face.verts[1].z + face.verts[2].z + face.verts[3].z) / 4;
-                        visibleFaces.push({ face, avgZ });
-                    }
-                });
-                
-                // Sort visible faces by depth (back to front)
-                visibleFaces.sort((a, b) => a.avgZ - b.avgZ);
-                
-                // Draw only the visible faces in correct order
-                visibleFaces.forEach(({ face, avgZ }) => {
-                    // Apply brightness variation for 3D effect
-                    const r = Math.floor(baseColor[0] * face.brightness);
-                    const g = Math.floor(baseColor[1] * face.brightness);
-                    const b = Math.floor(baseColor[2] * face.brightness);
-                    
-                    // Apply opacity with optional depth fading
-                    const opacityMultiplier = cubeOpacity / 100;
-                    let fillOpacity, strokeOpacity;
-                    
-                    if (cubeOpacity === 100) {
-                        // At 100% opacity, make it completely opaque (1.0)
-                        fillOpacity = 1.0;
-                        strokeOpacity = 1.0;
-                    } else if (cubeOpacity >= 90) {
-                        // At high opacity, make it nearly solid (no depth fading)
-                        fillOpacity = opacityMultiplier * 0.95;
-                        strokeOpacity = opacityMultiplier;
-                    } else {
-                        // At lower opacity, apply subtle depth fading
-                        const depthFactor = Math.max(0.3, 1 - (avgZ + 400) / 1200);
-                        fillOpacity = depthFactor * opacityMultiplier * 0.7;
-                        strokeOpacity = depthFactor * opacityMultiplier * 0.8;
-                    }
-                    
-                    // Draw the face
-                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${fillOpacity})`;
-                    ctx.strokeStyle = `rgba(${r * 0.7}, ${g * 0.7}, ${b * 0.7}, ${strokeOpacity})`;
-                    ctx.lineWidth = 1.2;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(face.verts[0].x, face.verts[0].y);
-                    ctx.lineTo(face.verts[1].x, face.verts[1].y);
-                    ctx.lineTo(face.verts[2].x, face.verts[2].y);
-                    ctx.lineTo(face.verts[3].x, face.verts[3].y);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                });
-            });
-            
             ctx.restore();
         }
 
@@ -847,64 +837,71 @@
                     const p = project(atom.x, atom.y, atom.z);
                     return { ...p, atom };
                 });
-                
+
                 // Sort by depth for proper rendering
                 projected.sort((a, b) => a.z - b.z);
-                
+
                 // Draw bonds
                 if (showBonds) {
-                    ctx.lineWidth = bondWidth;
-                    
-                    // Batch drawing by color to reduce state changes
-                    const normalBonds = [];
-                    const displacedBonds = [];
-                    
+                    ctx.lineWidth = bondWidth + 1.2; // Make bonds more visible
+                    // Only draw bonds if at least one atom is on the outer surface
                     bonds.forEach(([idx1, idx2]) => {
-                        const displaced = atoms[idx1].displaced || atoms[idx2].displaced;
-                        const bondData = [idx1, idx2];
-                        
-                        if (displaced) {
-                            displacedBonds.push(bondData);
-                        } else {
-                            normalBonds.push(bondData);
+                        const a1 = atoms[idx1];
+                        const a2 = atoms[idx2];
+                        // Only draw if either atom is on the outer surface
+                        if (
+                            a1.x === a1.originalX && (
+                                a1.originalX === atoms[0].originalX ||
+                                a1.originalX === atoms[atoms.length-1].originalX ||
+                                a1.originalY === atoms[0].originalY ||
+                                a1.originalY === atoms[atoms.length-1].originalY ||
+                                a1.originalZ === atoms[0].originalZ ||
+                                a1.originalZ === atoms[atoms.length-1].originalZ
+                            ) ||
+                            a2.x === a2.originalX && (
+                                a2.originalX === atoms[0].originalX ||
+                                a2.originalX === atoms[atoms.length-1].originalX ||
+                                a2.originalY === atoms[0].originalY ||
+                                a2.originalY === atoms[atoms.length-1].originalY ||
+                                a2.originalZ === atoms[0].originalZ ||
+                                a2.originalZ === atoms[atoms.length-1].originalZ
+                            )
+                        ) {
+                            const p1 = project(a1.x, a1.y, a1.z);
+                            const p2 = project(a2.x, a2.y, a2.z);
+                            ctx.strokeStyle = a1.displaced || a2.displaced
+                                ? 'rgba(255, 120, 120, 0.95)'
+                                : 'rgba(120, 180, 255, 0.85)';
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
                         }
                     });
-                    
-                    // Draw normal bonds (no shadows for performance)
-                    normalBonds.forEach(([idx1, idx2]) => {
-                        const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
-                        const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
-                        const avgZ = (p1.z + p2.z) / 2;
-                        const opacity = Math.max(0.2, 1 - (avgZ + 400) / 900);
-                        
-                        ctx.strokeStyle = `rgba(120, 180, 255, ${opacity * 0.6})`;
-                        ctx.beginPath();
-                        ctx.moveTo(p1.x, p1.y);
-                        ctx.lineTo(p2.x, p2.y);
-                        ctx.stroke();
-                    });
-                    
-                    // Draw displaced bonds
-                    displacedBonds.forEach(([idx1, idx2]) => {
-                        const p1 = project(atoms[idx1].x, atoms[idx1].y, atoms[idx1].z);
-                        const p2 = project(atoms[idx2].x, atoms[idx2].y, atoms[idx2].z);
-                        const avgZ = (p1.z + p2.z) / 2;
-                        const opacity = Math.max(0.3, 1 - (avgZ + 400) / 900);
-                        
-                        ctx.strokeStyle = `rgba(255, 120, 120, ${opacity * 0.85})`;
-                        ctx.beginPath();
-                        ctx.moveTo(p1.x, p1.y);
-                        ctx.lineTo(p2.x, p2.y);
-                        ctx.stroke();
-                    });
                 }
-                
+
                 // Draw atoms (no shadows for performance)
                 if (showAtoms) {
                     projected.forEach(({ x, y, z, scale, atom }) => {
+                        // Only show atoms on the outer surface if cubes are fully opaque
+                        let show = true;
+                        if (showSolid && cubeOpacity === 100) {
+                            // Only show if atom is on the outer surface
+                            const eps = 1e-3;
+                            show = (
+                                Math.abs(atom.originalX - atoms[0].originalX) < eps ||
+                                Math.abs(atom.originalX - atoms[atoms.length-1].originalX) < eps ||
+                                Math.abs(atom.originalY - atoms[0].originalY) < eps ||
+                                Math.abs(atom.originalY - atoms[atoms.length-1].originalY) < eps ||
+                                Math.abs(atom.originalZ - atoms[0].originalZ) < eps ||
+                                Math.abs(atom.originalZ - atoms[atoms.length-1].originalZ) < eps
+                            );
+                        }
+                        if (!show) return;
+
                         const opacity = Math.max(0.3, 1 - (z + 400) / 900);
                         const size = atomRadius * scale;
-                        
+
                         // Color based on displacement with better visibility
                         if (atom.displaced) {
                             const intensity = Math.min(255, 160 + Math.abs(atom.z - atom.originalZ) * 2.5);
@@ -912,11 +909,11 @@
                         } else {
                             ctx.fillStyle = `rgba(120, 170, 255, ${opacity})`;
                         }
-                        
+
                         ctx.beginPath();
                         ctx.arc(x, y, size, 0, Math.PI * 2);
                         ctx.fill();
-                        
+
                         // Bright highlight effect
                         if (size > 2) {
                             ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.7})`;
