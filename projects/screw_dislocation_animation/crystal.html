@@ -364,9 +364,9 @@
 
         // Apply screw dislocation
         function applyScrewDislocation(progress) {
-            const burgers = spacing; // Burgers vector magnitude (one lattice spacing)
+            const burgers = spacing * 0.5; // Reduced Burgers vector for more realistic displacement
             const maxDisplacement = (shearForceValue / 50) * burgers;
-            const coreRadius = spacing * 0.5; // Dislocation core radius
+            const coreRadius = spacing * 1.0; // Larger core radius
             
             atoms.forEach(atom => {
                 const x = atom.originalX;
@@ -377,7 +377,7 @@
                 const r = Math.sqrt(x * x + y * y);
                 
                 // Atoms at the exact center don't move
-                if (r < spacing * 0.3) {
+                if (r < spacing * 0.4) {
                     atom.x = x;
                     atom.y = y;
                     atom.z = z;
@@ -397,9 +397,10 @@
                 // where b is the Burgers vector, θ is angle around dislocation
                 const baseDisplacement = (theta / (2 * Math.PI)) * burgers;
                 
-                // Apply smooth decay function with distance from core
-                // Use a more gradual decay to show the long-range strain field
-                const decayFactor = coreRadius / (r + coreRadius);
+                // Apply stronger decay function with distance from core
+                // This makes atoms further away move much less
+                const normalizedR = r / (spacing * 4); // Normalize distance
+                const decayFactor = Math.exp(-normalizedR * normalizedR * 1.5); // Gaussian-like decay
                 
                 // Smooth animation progress (ease in-out)
                 const smoothProgress = progress < 0.5 
@@ -412,11 +413,11 @@
                 
                 // Atoms maintain their x,y positions (no radial movement in pure screw)
                 // Only slight elastic distortion
-                const elasticStrain = 0.02 * totalDisplacement * decayFactor;
+                const elasticStrain = 0.015 * totalDisplacement * decayFactor;
                 atom.x = x * (1 + elasticStrain);
                 atom.y = y * (1 + elasticStrain);
                 
-                atom.displaced = Math.abs(totalDisplacement) > 0.01;
+                atom.displaced = Math.abs(totalDisplacement) > 0.02;
             });
         }
 
@@ -448,7 +449,7 @@
             };
         }
 
-        // Draw cubic/solid structure (optimized)
+        // Draw cubic/solid structure (optimized) - using ACTUAL atom positions
         function drawSolidStructure() {
             if (!showSolid) return;
             
@@ -462,28 +463,27 @@
                 for (let j = 0; j < latticeSize - 1; j += step) {
                     for (let k = 0; k < latticeSize - 1; k += step) {
                         const idx000 = i * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx100 = (i+step) * latticeSize * latticeSize + j * latticeSize + k;
-                        const idx010 = i * latticeSize * latticeSize + (j+step) * latticeSize + k;
-                        const idx110 = (i+step) * latticeSize * latticeSize + (j+step) * latticeSize + k;
-                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + (k+step);
-                        const idx101 = (i+step) * latticeSize * latticeSize + j * latticeSize + (k+step);
-                        const idx011 = i * latticeSize * latticeSize + (j+step) * latticeSize + (k+step);
-                        const idx111 = (i+step) * latticeSize * latticeSize + (j+step) * latticeSize + (k+step);
+                        const idx100 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + j * latticeSize + k;
+                        const idx010 = i * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + k;
+                        const idx110 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + k;
+                        const idx001 = i * latticeSize * latticeSize + j * latticeSize + Math.min((k+step), latticeSize-1);
+                        const idx101 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + j * latticeSize + Math.min((k+step), latticeSize-1);
+                        const idx011 = i * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + Math.min((k+step), latticeSize-1);
+                        const idx111 = Math.min((i+step), latticeSize-1) * latticeSize * latticeSize + Math.min((j+step), latticeSize-1) * latticeSize + Math.min((k+step), latticeSize-1);
                         
                         if (idx111 < atoms.length) {
+                            // Use ACTUAL displaced atom positions, not original positions!
                             const corners = [
                                 atoms[idx000], atoms[idx100], atoms[idx010], atoms[idx110],
                                 atoms[idx001], atoms[idx101], atoms[idx011], atoms[idx111]
                             ];
                             
-                            // Calculate center for depth sorting
-                            let centerZ = 0, centerX = 0, centerY = 0;
+                            // Calculate center for depth sorting using ACTUAL positions
+                            let centerZ = 0;
                             for (let ci = 0; ci < 8; ci++) {
                                 centerZ += corners[ci].z;
-                                centerX += corners[ci].x;
-                                centerY += corners[ci].y;
                             }
-                            centerZ /= 8; centerX /= 8; centerY /= 8;
+                            centerZ /= 8;
                             
                             const displaced = corners.some(atom => atom.displaced);
                             
@@ -501,6 +501,7 @@
                 const c = cube.corners;
                 
                 // Define the 6 faces of the cube (only visible ones will be drawn)
+                // Using ACTUAL atom x,y,z coordinates
                 const faces = [
                     { verts: [c[0], c[1], c[3], c[2]], normal: [0, 0, -1] }, // front
                     { verts: [c[4], c[5], c[7], c[6]], normal: [0, 0, 1] },  // back
@@ -514,6 +515,7 @@
                 const baseColor = cube.displaced ? [255, 100, 100] : [100, 150, 255];
                 
                 faces.forEach((face, faceIdx) => {
+                    // Project using ACTUAL atom positions
                     const projected = face.verts.map(atom => project(atom.x, atom.y, atom.z));
                     
                     // Back-face culling
