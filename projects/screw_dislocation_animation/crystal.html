@@ -126,12 +126,14 @@ References:
             background: rgba(255, 255, 255, 0.15);
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: white;
-            padding: 8px 14px;
+            padding: 10px 18px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 14px;
             transition: all 0.3s;
             pointer-events: auto;
+            flex: 1;
+            min-width: 80px;
         }
 
         button:hover {
@@ -199,12 +201,14 @@ References:
         
         <div class="control-panel">
             <div class="control-section">
-                <div class="section-title">Animation</div>
                 <div class="controls">
                     <button id="applyShear">Apply Shear</button>
                     <button id="reset">Reset</button>
-                    <button id="toggleAnimation">Pause</button>
                 </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">Animation</div>
                 <div class="slider-row">
                     <label>Shear Force:</label>
                     <input type="range" id="shearForce" min="0" max="350" value="150">
@@ -929,7 +933,6 @@ References:
             isAnimating = true;
             animationPaused = false;
             shearProgress = 0;
-            document.getElementById('toggleAnimation').textContent = 'Pause';
         });
 
         document.getElementById('reset').addEventListener('click', () => {
@@ -937,12 +940,6 @@ References:
             shearProgress = 0;
             isAnimating = false;
             animationPaused = false;
-            document.getElementById('toggleAnimation').textContent = 'Pause';
-        });
-
-        document.getElementById('toggleAnimation').addEventListener('click', (e) => {
-            animationPaused = !animationPaused;
-            e.target.textContent = animationPaused ? 'Resume' : 'Pause';
         });
 
         document.getElementById('showBonds').addEventListener('change', (e) => {
