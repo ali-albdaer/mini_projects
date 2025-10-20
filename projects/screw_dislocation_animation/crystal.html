@@ -765,53 +765,6 @@
             ctx.restore();
         }
 
-        // Draw shear force arrows - showing shear vectors on outer surfaces
-        function drawShearForces(progress) {
-            if (progress < 0.1) return;
-            
-            ctx.save();
-            ctx.globalAlpha = Math.min(progress * 2, 0.8);
-            
-            // For a screw dislocation, shear stress acts parallel to the dislocation line
-            // on the outer surfaces. The direction depends on the angular position around the line.
-            
-            const height = spacing * (latticeSize - 1);
-            const centerOffset = -height / 2;
-            const latticeRadius = spacing * (latticeSize - 1) / 2;
-            const arrowLength = spacing * 2.5;
-            
-            // Define positions on the 4 outer faces of the lattice (front, back, left, right)
-            const positions = [
-                // Front face (+y direction) - arrow points UP (+z)
-                { x: 0, y: latticeRadius, z: centerOffset, dir: 1, label: 'τ_yz' },
-                // Back face (-y direction) - arrow points DOWN (-z)
-                { x: 0, y: -latticeRadius, z: centerOffset, dir: -1, label: 'τ_yz' },
-                // Right face (+x direction) - arrow points UP (+z)
-                { x: latticeRadius, y: 0, z: centerOffset, dir: 1, label: 'τ_xz' },
-                // Left face (-x direction) - arrow points DOWN (-z)
-                { x: -latticeRadius, y: 0, z: centerOffset, dir: -1, label: 'τ_xz' }
-            ];
-            
-            positions.forEach(pos => {
-                // Starting point of arrow
-                const p1 = project(pos.x, pos.y, pos.z);
-                // Ending point (parallel to z-axis, direction based on angular position)
-                const p2 = project(pos.x, pos.y, pos.z + arrowLength * pos.dir);
-                
-                // Color based on direction
-                const color = pos.dir > 0 ? 'rgba(255, 100, 100, 0.9)' : 'rgba(100, 150, 255, 0.9)';
-                
-                drawArrow(p1.x, p1.y, p2.x, p2.y, color, 4);
-                
-                // Add label near the arrow
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(pos.label, p1.x, p1.y - 15);
-            });
-            
-            ctx.restore();
-        }
 
         function drawArrow(x1, y1, x2, y2, color, width) {
             const headlen = 15;
@@ -839,8 +792,6 @@
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw shear force arrows
-            drawShearForces(shearProgress);
             
             // Draw solid structure (cubes) - this is expensive, so optimize
             drawSolidStructure();
